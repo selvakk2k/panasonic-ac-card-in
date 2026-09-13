@@ -40,13 +40,13 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 
 ### Method 1: Via HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=selvakk2k&repository=miraie-ac-card-in&category=plugin)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=selvakk2k&repository=panasonic-ac-card-in&category=plugin)
 
 1. Click the **Open repository in HACS** button above, or open **HACS** from your Home Assistant sidebar.
 2. Search for **Panasonic AC India Card**, click **Download**, and reload your dashboard.
 
 ### Method 2: Manual Installation
-1. Download `miraie-ac-card.js` from the [Releases](https://github.com/selvakk2k/miraie-ac-card-in/releases) page.
+1. Download `miraie-ac-card.js` from the [Releases](https://github.com/selvakk2k/panasonic-ac-card-in/releases) page.
 2. Place the file into `<config>/www/miraie-ac-card.js`.
 3. In Home Assistant, go to **Settings → Dashboards → Resources** → Add `/local/miraie-ac-card.js` as a **JavaScript Module**.
 
