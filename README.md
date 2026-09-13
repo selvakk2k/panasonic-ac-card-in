@@ -1,12 +1,12 @@
-# Panasonic AC India Card (formerly MirAIe AC Card) (`miraie-ac-card-in`)
+# Panasonic AC India Card (`panasonic-ac-card-in`)
 
 [![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=flat-square)](https://github.com/hacs/default)
-[![Stable](https://img.shields.io/github/v/release/selvakk2k/miraie-ac-card-in?label=Stable&style=flat-square)](https://github.com/selvakk2k/miraie-ac-card-in/releases/latest)
-[![Beta](https://img.shields.io/github/v/release/selvakk2k/miraie-ac-card-in?include_prereleases&label=Beta&color=orange&style=flat-square)](https://github.com/selvakk2k/miraie-ac-card-in/releases)
+[![Stable](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?label=Stable&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases/latest)
+[![Beta](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?include_prereleases&label=Beta&color=orange&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases)
 [![AI-Assisted](https://img.shields.io/badge/AI%20Assisted-Antigravity%20%7C%20Claude-blueviolet?style=flat-square&logo=google)](https://github.com/selvakk2k)
 [![AI Attribution](https://img.shields.io/badge/AI%20Attribution-AIA%20PAI%20Nc%20Hin-orange?style=flat-square)](https://aiattribution.github.io/interpret-attribution)
 
-A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian market, designed for use with the [Panasonic AC India Integration](https://github.com/selvakk2k/ha-miraie-ac-in).
+A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian market, designed for use with the [Panasonic AC India Integration](https://github.com/selvakk2k/ha-panasonic-ac-in).
 
 > [!IMPORTANT]
 > This card is designed **exclusively** for Panasonic Air Conditioners using the **MirAIe** application. It is **not compatible** with Panasonic ACs using the global **Comfort Cloud** platform.
@@ -98,8 +98,8 @@ energy_yesterday_sensor: sensor.living_room_ac_energy_yesterday
 
 | Integration / Card | Category | Description | Status |
 | :--- | :--- | :--- | :--- |
-| [Panasonic AC India](https://github.com/selvakk2k/ha-miraie-ac-in) | Integration | Local IR & Cloud MQTT control for Panasonic MirAIe Air Conditioners | `Stable` |
-| [Panasonic AC India Card](https://github.com/selvakk2k/miraie-ac-card-in) | Lovelace Card | Modern Lovelace card for Panasonic ACs | `Stable` |
+| [Panasonic AC India](https://github.com/selvakk2k/ha-panasonic-ac-in) | Integration | Local IR & Cloud MQTT control for Panasonic MirAIe Air Conditioners | `Stable` |
+| [Panasonic AC India Card](https://github.com/selvakk2k/panasonic-ac-card-in) | Lovelace Card | Modern Lovelace card for Panasonic ACs | `Stable` |
 | [Indian BLDC Fan IR](https://github.com/selvakk2k/ha-bldc-fan-ir) | Integration | Native Home Assistant integration for Indian BLDC ceiling fans (Atomberg, Superfan) | `Stable` |
 | [Indian BLDC Fan Card](https://github.com/selvakk2k/bldc-fan-card) | Lovelace Card | Interactive Lovelace card with speed dial & mode toggles for BLDC fans | `Stable` |
 | [IFB Washer Local](https://github.com/selvakk2k/ifb-washer-local) | Integration | Local Wi-Fi integration for IFB Front Load Washing Machines & Washer Dryers | `Beta` |

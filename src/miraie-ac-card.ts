@@ -12,11 +12,11 @@ const customCardEntry = {
   preview: true,
   domain: 'climate',
   domains: ['climate'],
-  documentationURL: 'https://github.com/selvakk2k/miraie-ac-card-in',
+  documentationURL: 'https://github.com/selvakk2k/panasonic-ac-card-in',
 };
 (window as any).customCards = (window as any).customCards || [];
 const existingCardIdx = (window as any).customCards.findIndex(
-  (c: any) => c.type === 'miraie-ac-card' || c.type === 'custom:miraie-ac-card' || c.type === 'miraie-ac-card-in' || c.type === 'custom:miraie-ac-card-in'
+  (c: any) => c.type === 'miraie-ac-card' || c.type === 'custom:miraie-ac-card' || c.type === 'miraie-ac-card-in' || c.type === 'custom:miraie-ac-card-in' || c.type === 'panasonic-ac-card-in' || c.type === 'custom:panasonic-ac-card-in'
 );
 if (existingCardIdx >= 0) {
   (window as any).customCards[existingCardIdx] = customCardEntry;
