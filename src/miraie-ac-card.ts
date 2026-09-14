@@ -209,17 +209,25 @@ export class MirAIeACCard extends LitElement {
   /* ─────────────────────────────────────────────
      Render
      ───────────────────────────────────────────── */
+  private _getEntityId(): string {
+    if (this._config?.entity) return this._config.entity;
+    if (this.hass?.states) {
+      return Object.keys(this.hass.states).find((e) => e.startsWith('climate.')) || '';
+    }
+    return '';
+  }
+
   protected render(): TemplateResult | null {
     if (!this.hass || !this._config) return null;
 
     const cfg = this._config;
-    const entityId = cfg.entity;
+    const entityId = this._getEntityId();
     const stateObj = entityId ? this.hass.states[entityId] : undefined;
     if (!stateObj) {
       return html`
         <ha-card class="m-card" style="padding: 24px; text-align: center; color: var(--appliance-text-2, var(--secondary-text-color, #8e8e93));">
           <ha-icon icon="mdi:air-conditioner" style="--mdc-icon-size: 40px; margin-bottom: 8px; opacity: 0.6; color: var(--miraie-accent, var(--primary-color, #f39c12));"></ha-icon>
-          <div style="font-weight: 500; font-size: 15px; color: var(--appliance-text-1, var(--primary-text-color, inherit));">MirAIe AC Card</div>
+          <div style="font-weight: 500; font-size: 15px; color: var(--appliance-text-1, var(--primary-text-color, inherit));">Panasonic MirAIe AC Card</div>
           <div style="font-size: 13px; margin-top: 4px;">
             ${entityId ? html`Entity not found: <code>${entityId}</code>` : 'Please select a Panasonic MirAIe climate entity in the card editor.'}
           </div>
