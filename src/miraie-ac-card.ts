@@ -82,8 +82,8 @@ export class MirAIeACCard extends LitElement {
   static getConfigForm() {
     return {
       schema: [
-        { name: 'entity',  required: true, selector: { entity: { domain: 'climate', integration: 'miraie_in' } } },
-        { name: 'name',    selector: { text: {} } },
+        { name: 'entity', required: true, selector: { entity: { domain: 'climate', integration: 'miraie_in' } } },
+        { name: 'name', selector: { text: {} } },
         { name: 'theme', selector: { select: { options: [{ label: 'Default HA Theme', value: 'default' }, { label: 'Material You (Optimized for Material 3 Theme)', value: 'material_you' }] } } },
         { name: 'layout', selector: { select: { options: [{ label: 'Default (Full)', value: 'default' }, { label: 'Compact (Expandable)', value: 'compact' }] } } },
         { name: 'full_layout', selector: { select: { options: [{ label: 'Classic', value: 'default' }, { label: 'Google Home', value: 'google_home' }] } } },
@@ -98,7 +98,7 @@ export class MirAIeACCard extends LitElement {
           name: '', type: 'expandable', title: 'Display Sensors', icon: 'mdi:thermometer',
           schema: [
             { name: 'room_temp_sensor', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-            { name: 'humidity_sensor',  selector: { entity: { domain: 'sensor', device_class: 'humidity'    } } },
+            { name: 'humidity_sensor', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
           ],
         },
         {
@@ -106,8 +106,8 @@ export class MirAIeACCard extends LitElement {
           schema: [
             { name: 'hybrid_submode_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
             { name: 'active_backend_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'ir_blaster_sensor',     selector: { entity: { domain: ['binary_sensor', 'infrared', 'remote'] } } },
-            { name: 'cloud_mqtt_sensor',     selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+            { name: 'ir_blaster_sensor', selector: { entity: { domain: ['binary_sensor', 'infrared', 'remote'] } } },
+            { name: 'cloud_mqtt_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             { name: 'control_source_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
           ],
         },
@@ -115,10 +115,10 @@ export class MirAIeACCard extends LitElement {
           name: '', type: 'expandable', title: 'Convertible & Controls', icon: 'mdi:toggle-switch-outline',
           schema: [
 
-            { name: 'nanoe_switch',            selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'display_switch',          selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'coil_clean_button',       selector: { entity: { domain: 'button', integration: 'miraie_in' } } },
-            { name: 'coil_cleaning_sensor',    selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+            { name: 'nanoe_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'display_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'coil_clean_button', selector: { entity: { domain: 'button', integration: 'miraie_in' } } },
+            { name: 'coil_cleaning_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             {
               name: 'filter_alert_sensor',
               selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } },
@@ -128,8 +128,8 @@ export class MirAIeACCard extends LitElement {
         {
           name: '', type: 'expandable', title: 'Diagnostics & Energy', icon: 'mdi:chart-line',
           schema: [
-            { name: 'rssi_sensor',             selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
-            { name: 'energy_today_sensor',     selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'rssi_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'energy_today_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
             { name: 'energy_yesterday_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
           ],
         },
@@ -212,7 +212,13 @@ export class MirAIeACCard extends LitElement {
   private _getEntityId(): string {
     if (this._config?.entity) return this._config.entity;
     if (this.hass?.states) {
-      return Object.keys(this.hass.states).find((e) => e.startsWith('climate.')) || '';
+      const stateKeys = Object.keys(this.hass.states);
+      const reg = (this.hass as any)?.entities;
+      return (
+        (reg && stateKeys.find((id) => id.startsWith('climate.') && (reg[id]?.platform === 'miraie_in' || reg[id]?.platform === 'miraie_ac'))) ||
+        stateKeys.find((id) => id.startsWith('climate.') && id.includes('miraie')) ||
+        ''
+      );
     }
     return '';
   }
@@ -237,29 +243,29 @@ export class MirAIeACCard extends LitElement {
 
     const a = stateObj.attributes;
     const isOnline = stateObj.state !== 'unavailable' && stateObj.state !== 'unknown';
-    const isOn     = stateObj.state !== 'off' && isOnline;
+    const isOn = stateObj.state !== 'off' && isOnline;
 
     const friendlyName = cfg.name || a.friendly_name || 'AC';
-    const targetTemp   = a.temperature;
-    const minTemp      = a.min_temp ?? 16;
-    const maxTemp      = a.max_temp ?? 30;
-    const presetMode   = a.preset_mode;
+    const targetTemp = a.temperature;
+    const minTemp = a.min_temp ?? 16;
+    const maxTemp = a.max_temp ?? 30;
+    const presetMode = a.preset_mode;
     const effectiveMin = presetMode === 'eco' ? 16 : minTemp;
     const effectiveMax = presetMode === 'eco' ? 30 : maxTemp;
-    const hvacMode     = stateObj.state;
-    const fanMode      = a.fan_mode;
-    const swingV       = a.swing_mode;
-    const swingH       = a.swing_horizontal_mode;
+    const hvacMode = stateObj.state;
+    const fanMode = a.fan_mode;
+    const swingV = a.swing_mode;
+    const swingH = a.swing_horizontal_mode;
 
     /* Room temperature: external sensor overrides AC built-in */
-    const roomSensor   = cfg.room_temp_sensor ? this.hass.states[cfg.room_temp_sensor] : undefined;
+    const roomSensor = cfg.room_temp_sensor ? this.hass.states[cfg.room_temp_sensor] : undefined;
     let currentTemp: any = roomSensor ? roomSensor.state : a.current_temperature;
     if (currentTemp != null && !isNaN(Number(currentTemp))) {
       currentTemp = Number(currentTemp).toFixed(1);
     }
 
     /* Humidity */
-    const humidState   = cfg.humidity_sensor ? this.hass.states[cfg.humidity_sensor] : undefined;
+    const humidState = cfg.humidity_sensor ? this.hass.states[cfg.humidity_sensor] : undefined;
     let humidVal: any = humidState ? humidState.state : undefined;
     if (humidVal != null && !isNaN(Number(humidVal))) {
       humidVal = Number(humidVal).toFixed(1);
@@ -267,18 +273,18 @@ export class MirAIeACCard extends LitElement {
 
     /* Helper entities */
 
-    const nanoe        = cfg.nanoe_switch              ? this.hass.states[cfg.nanoe_switch]              : undefined;
-    const display      = cfg.display_switch            ? this.hass.states[cfg.display_switch]            : undefined;
-    const coilBtn      = cfg.coil_clean_button         ? this.hass.states[cfg.coil_clean_button]         : undefined;
-    const coilSensor   = cfg.coil_cleaning_sensor      ? this.hass.states[cfg.coil_cleaning_sensor]      : undefined;
-    const filterAlert  = cfg.filter_alert_sensor       ? this.hass.states[cfg.filter_alert_sensor]       : undefined;
-    const rssi         = cfg.rssi_sensor               ? this.hass.states[cfg.rssi_sensor]               : undefined;
-    const energyToday  = cfg.energy_today_sensor       ? this.hass.states[cfg.energy_today_sensor]       : undefined;
-    const energyYest   = cfg.energy_yesterday_sensor   ? this.hass.states[cfg.energy_yesterday_sensor]   : undefined;
-    const isCleaning   = coilSensor?.state === 'on';
+    const nanoe = cfg.nanoe_switch ? this.hass.states[cfg.nanoe_switch] : undefined;
+    const display = cfg.display_switch ? this.hass.states[cfg.display_switch] : undefined;
+    const coilBtn = cfg.coil_clean_button ? this.hass.states[cfg.coil_clean_button] : undefined;
+    const coilSensor = cfg.coil_cleaning_sensor ? this.hass.states[cfg.coil_cleaning_sensor] : undefined;
+    const filterAlert = cfg.filter_alert_sensor ? this.hass.states[cfg.filter_alert_sensor] : undefined;
+    const rssi = cfg.rssi_sensor ? this.hass.states[cfg.rssi_sensor] : undefined;
+    const energyToday = cfg.energy_today_sensor ? this.hass.states[cfg.energy_today_sensor] : undefined;
+    const energyYest = cfg.energy_yesterday_sensor ? this.hass.states[cfg.energy_yesterday_sensor] : undefined;
+    const isCleaning = coilSensor?.state === 'on';
 
     /* 2.0 Hybrid Architecture Companion Entities with Auto-Discovery */
-    const baseId = cfg.entity.replace(/^climate\./, '');
+    const baseId = (stateObj.entity_id || this._getEntityId() || '').replace(/^climate\./, '');
     const findCompanionEntity = (configuredId: string | undefined, domain: string, patterns: string[]): any => {
       if (configuredId && this.hass.states[configuredId]) return this.hass.states[configuredId];
       for (const pat of patterns) {
@@ -339,12 +345,12 @@ export class MirAIeACCard extends LitElement {
     let curCvOpt = a.preset_mode && /^cv[\s_]/.test(a.preset_mode) ? a.preset_mode : `${cvPrefix}0`;
 
     // Sorted ascending: [40, 50, 60, ...] (without 0 = Normal)
-    const cvNonZero  = cvOptions.filter(o => parseCv(o) > 0).sort((a, b) => parseCv(a) - parseCv(b));
+    const cvNonZero = cvOptions.filter(o => parseCv(o) > 0).sort((a, b) => parseCv(a) - parseCv(b));
     // All steps: Normal first, then ascending percentage steps
     const allCvSteps = [`${cvPrefix}0`, ...cvNonZero];
-    const curCvIdx   = allCvSteps.indexOf(curCvOpt);   // 0 = Normal
+    const curCvIdx = allCvSteps.indexOf(curCvOpt);   // 0 = Normal
     const cvGenLabel = convertiLabel(cvOptions);
-    const fillPct    = cvNonZero.length > 0
+    const fillPct = cvNonZero.length > 0
       ? (curCvIdx / (allCvSteps.length - 1)) * 100
       : 0;
 
@@ -374,7 +380,7 @@ export class MirAIeACCard extends LitElement {
         else mainStyle = c;
       }
     }
-    
+
     const cardStyle = `${accentStyle ? `--miraie-accent: ${accentStyle}; ` : ''}${mainStyle ? `--m-bg: ${mainStyle}; ` : ''}`;
 
     if (cfg.layout === 'compact' && !this._expanded) {
@@ -424,14 +430,14 @@ export class MirAIeACCard extends LitElement {
               class="power-btn ${isOn ? 'on' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}"
               title="${isCleaning ? 'Power cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Power')}"
               @click=${() => {
-                if (isCleaning) {
-                  this._showToast('Power cannot be toggled while coil cleaning is active');
-                } else if (!isOnline) {
-                  this._showToast('Device is offline');
-                } else {
-                  this._togglePower(stateObj);
-                }
-              }}
+        if (isCleaning) {
+          this._showToast('Power cannot be toggled while coil cleaning is active');
+        } else if (!isOnline) {
+          this._showToast('Device is offline');
+        } else {
+          this._togglePower(stateObj);
+        }
+      }}
             >
               <ha-icon icon="mdi:power"></ha-icon>
             </button>
@@ -444,18 +450,18 @@ export class MirAIeACCard extends LitElement {
             class="temp-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) <= Number(effectiveMin) ? `Minimum temperature reached (${effectiveMin}°)` : 'Decrease Temperature')))}"
             @click=${() => {
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) {
-                this._showToast(`Minimum temperature reached (${effectiveMin}°)`);
-              } else {
-                this._adjustTemp(-1, targetTemp, effectiveMin);
-              }
-            }}
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) {
+          this._showToast(`Minimum temperature reached (${effectiveMin}°)`);
+        } else {
+          this._adjustTemp(-1, targetTemp, effectiveMin);
+        }
+      }}
           >
             <ha-icon icon="mdi:minus"></ha-icon>
           </button>
@@ -482,18 +488,18 @@ export class MirAIeACCard extends LitElement {
             class="temp-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) >= Number(effectiveMax) ? `Maximum temperature reached (${effectiveMax}°)` : 'Increase Temperature')))}"
             @click=${() => {
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) {
-                this._showToast(`Maximum temperature reached (${effectiveMax}°)`);
-              } else {
-                this._adjustTemp(1, targetTemp, effectiveMax);
-              }
-            }}
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) {
+          this._showToast(`Maximum temperature reached (${effectiveMax}°)`);
+        } else {
+          this._adjustTemp(1, targetTemp, effectiveMax);
+        }
+      }}
           >
             <ha-icon icon="mdi:plus"></ha-icon>
           </button>
@@ -518,27 +524,27 @@ export class MirAIeACCard extends LitElement {
               <div class="segmented-bar connection-switches">
                 ${activeBackendSwitch ? html`
                   ${(() => {
-                    const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
-                    const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
-                    return html`
+            const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
+            const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
+            return html`
                       <button
                         class="segmented-item ${!isAuto ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
                         title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend')}"
                         @click=${() => {
-                          if (isAuto) {
-                            this._showToast('Backend transport is managed automatically in Auto Failover mode');
-                          } else if (isCleaning) {
-                            this._showToast('Backend cannot be switched while coil cleaning is active');
-                          } else {
-                            this._toggleSwitch(activeBackendSwitch.entity_id, activeBackendSwitch.state);
-                          }
-                        }}
+                if (isAuto) {
+                  this._showToast('Backend transport is managed automatically in Auto Failover mode');
+                } else if (isCleaning) {
+                  this._showToast('Backend cannot be switched while coil cleaning is active');
+                } else {
+                  this._toggleSwitch(activeBackendSwitch.entity_id, activeBackendSwitch.state);
+                }
+              }}
                       >
                         <ha-icon icon="${isCloud ? 'mdi:cloud-sync' : 'mdi:remote'}"></ha-icon>
                         ${isCloud ? 'Backend: Cloud' : 'Backend: IR'}
                       </button>
                     `;
-                  })()}
+          })()}
                 ` : ''}
 
                 ${hybridSwitch ? html`
@@ -546,12 +552,12 @@ export class MirAIeACCard extends LitElement {
                     class="segmented-item ${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'active' : ''} ${isCleaning ? 'disabled' : ''}"
                     title="${isCleaning ? 'Hybrid mode cannot be toggled while coil cleaning is active' : 'Click to toggle between Auto Failover and Manual backend'}"
                     @click=${() => {
-                      if (isCleaning) {
-                        this._showToast('Hybrid mode cannot be toggled while coil cleaning is active');
-                      } else {
-                        this._toggleSwitch(hybridSwitch.entity_id, hybridSwitch.state);
-                      }
-                    }}
+            if (isCleaning) {
+              this._showToast('Hybrid mode cannot be toggled while coil cleaning is active');
+            } else {
+              this._toggleSwitch(hybridSwitch.entity_id, hybridSwitch.state);
+            }
+          }}
                   >
                     <ha-icon icon="${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'mdi:refresh-auto' : 'mdi:hand-back-right'}"></ha-icon>
                     ${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'Auto Failover' : 'Manual'}
@@ -573,14 +579,14 @@ export class MirAIeACCard extends LitElement {
                 class="segmented-item ${hvacMode === m && isOn ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'HVAC mode cannot be changed while coil cleaning is active' : (!isOnline ? 'Device is offline' : this._modeLabel(m))}"
                 @click=${() => {
-                  if (isCleaning) {
-                    this._showToast('HVAC mode cannot be changed while coil cleaning is active');
-                  } else if (!isOnline) {
-                    this._showToast('Device is offline');
-                  } else {
-                    this._setHvacMode(m);
-                  }
-                }}
+              if (isCleaning) {
+                this._showToast('HVAC mode cannot be changed while coil cleaning is active');
+              } else if (!isOnline) {
+                this._showToast('Device is offline');
+              } else {
+                this._setHvacMode(m);
+              }
+            }}
               >
                 <ha-icon icon="${this._modeIcon(m)}"></ha-icon>
                 ${this._modeLabel(m)}
@@ -597,16 +603,16 @@ export class MirAIeACCard extends LitElement {
               class="setting-tile ${this._openPanel === 'fan' ? 'active' : ''} ${!isOn || hvacMode === 'dry' || isCleaning ? 'disabled' : ''}"
               title="${isCleaning ? 'Fan speed cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust fan speed' : (hvacMode === 'dry' ? 'Fan speed is automatically managed in Dry mode' : 'Adjust fan speed'))}"
               @click=${() => {
-                if (isCleaning) {
-                  this._showToast('Fan speed cannot be changed while coil cleaning is active');
-                } else if (!isOn) {
-                  this._showToast('Turn on the AC to adjust fan speed');
-                } else if (hvacMode === 'dry') {
-                  this._showToast('Fan speed is automatically managed in Dry mode');
-                } else {
-                  this._togglePanel('fan');
-                }
-              }}
+        if (isCleaning) {
+          this._showToast('Fan speed cannot be changed while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust fan speed');
+        } else if (hvacMode === 'dry') {
+          this._showToast('Fan speed is automatically managed in Dry mode');
+        } else {
+          this._togglePanel('fan');
+        }
+      }}
             >
               <div class="setting-tile-label">
                 <ha-icon icon="mdi:fan"></ha-icon>
@@ -623,14 +629,14 @@ export class MirAIeACCard extends LitElement {
                 class="setting-tile ${this._openPanel === 'swing_v' ? 'active' : ''} ${!isOn || isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'Swing vanes cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust swing vanes' : 'Adjust vertical swing')}"
                 @click=${() => {
-                  if (isCleaning) {
-                    this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
-                  } else if (!isOn) {
-                    this._showToast('Turn on the AC to adjust swing vanes');
-                  } else {
-                    this._togglePanel('swing_v');
-                  }
-                }}
+          if (isCleaning) {
+            this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust swing vanes');
+          } else {
+            this._togglePanel('swing_v');
+          }
+        }}
               >
                 <div class="setting-tile-label">
                   <ha-icon icon="mdi:arrow-up-down"></ha-icon>
@@ -648,14 +654,14 @@ export class MirAIeACCard extends LitElement {
                 class="setting-tile ${this._openPanel === 'swing_h' ? 'active' : ''} ${!isOn || isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'Horizontal swing cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust horizontal swing' : 'Adjust horizontal swing')}"
                 @click=${() => {
-                  if (isCleaning) {
-                    this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
-                  } else if (!isOn) {
-                    this._showToast('Turn on the AC to adjust horizontal swing');
-                  } else {
-                    this._togglePanel('swing_h');
-                  }
-                }}
+          if (isCleaning) {
+            this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust horizontal swing');
+          } else {
+            this._togglePanel('swing_h');
+          }
+        }}
               >
                 <div class="setting-tile-label">
                   <ha-icon icon="mdi:arrow-left-right"></ha-icon>
@@ -708,30 +714,30 @@ export class MirAIeACCard extends LitElement {
           <div class="section-title">Comfort Presets</div>
           <div class="segmented-bar">
             ${['none', 'eco', 'boost'].map(p => {
-              const isBlocked = !isOn || (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') || isCleaning || (curCvIdx > 0 && p !== 'none');
-              return html`
+          const isBlocked = !isOn || (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') || isCleaning || (curCvIdx > 0 && p !== 'none');
+          return html`
                 <button
                   class="segmented-item ${presetMode === p ? 'active' : ''} ${isBlocked ? 'disabled' : ''}"
                   title="${isCleaning ? 'Presets cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to select presets' : (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none' ? `Presets are not available in ${this._modeLabel(hvacMode)} mode` : (curCvIdx > 0 && p !== 'none' ? 'Presets cannot be changed while capacity limit is active' : (p === 'none' ? 'Normal' : p.charAt(0).toUpperCase() + p.slice(1)))))}"
                   @click=${() => {
-                    if (isCleaning) {
-                      this._showToast('Presets cannot be changed while coil cleaning is active');
-                    } else if (!isOn) {
-                      this._showToast('Turn on the AC to select presets');
-                    } else if (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') {
-                      this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
-                    } else if (curCvIdx > 0 && p !== 'none') {
-                      this._showToast('Presets cannot be changed while capacity limit is active');
-                    } else {
-                      this._setPreset(p);
-                    }
-                  }}
+              if (isCleaning) {
+                this._showToast('Presets cannot be changed while coil cleaning is active');
+              } else if (!isOn) {
+                this._showToast('Turn on the AC to select presets');
+              } else if (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') {
+                this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
+              } else if (curCvIdx > 0 && p !== 'none') {
+                this._showToast('Presets cannot be changed while capacity limit is active');
+              } else {
+                this._setPreset(p);
+              }
+            }}
                 >
                   <ha-icon icon="${this._presetIcon(p)}"></ha-icon>
                   ${this._presetLabel(p)}
                 </button>
               `;
-            })}
+        })}
           </div>
         </div>
 
@@ -754,34 +760,34 @@ export class MirAIeACCard extends LitElement {
                 </div>
                 <div class="step-notches">
                   ${allCvSteps.map((opt, i) => {
-                    const isPresetActive = ['eco', 'boost', 'powerful'].includes(presetMode);
-                    const isCvBlocked = !isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning || (isPresetActive && i > 0);
-                    return html`
+          const isPresetActive = ['eco', 'boost', 'powerful'].includes(presetMode);
+          const isCvBlocked = !isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning || (isPresetActive && i > 0);
+          return html`
                       <div class="notch-wrapper">
                         <button
                           class="step-notch
-                            ${i < curCvIdx  ? 'filled'  : ''}
+                            ${i < curCvIdx ? 'filled' : ''}
                             ${i === curCvIdx ? 'current' : ''}
                             ${isCvBlocked ? 'disabled' : ''}"
                           title="${isCleaning ? 'Capacity limit cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to set capacity limits' : (['dry', 'auto', 'fan_only'].includes(hvacMode) ? `Capacity limit is not available in ${this._modeLabel(hvacMode)} mode` : (isPresetActive && i > 0 ? `Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active` : (i === 0 ? 'Normal' : `${parseCv(opt)}%`))))}"
                           @click=${() => {
-                            if (isCleaning) {
-                              this._showToast('Capacity limit cannot be changed while coil cleaning is active');
-                            } else if (!isOn) {
-                              this._showToast('Turn on the AC to set capacity limits');
-                            } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-                              this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
-                            } else if (isPresetActive && i > 0) {
-                              this._showToast(`Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active`);
-                            } else {
-                              this._setPreset(opt);
-                            }
-                          }}
+              if (isCleaning) {
+                this._showToast('Capacity limit cannot be changed while coil cleaning is active');
+              } else if (!isOn) {
+                this._showToast('Turn on the AC to set capacity limits');
+              } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+                this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
+              } else if (isPresetActive && i > 0) {
+                this._showToast(`Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active`);
+              } else {
+                this._setPreset(opt);
+              }
+            }}
                         ></button>
                         <span class="notch-label ${i === curCvIdx ? 'current' : ''}">${i === 0 ? 'N' : parseCv(opt)}</span>
                       </div>
                     `;
-                  })}
+        })}
                 </div>
               </div>
             </div>
@@ -797,14 +803,14 @@ export class MirAIeACCard extends LitElement {
                 <div class="toggle-card ${!isOnline || isCleaning ? 'disabled' : ''}"
                      title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}"
                      @click=${() => {
-                       if (isCleaning) {
-                         this._showToast('Nanoe cannot be toggled while coil cleaning is active');
-                       } else if (!isOnline) {
-                         this._showToast('Device is offline');
-                       } else {
-                         this._toggleSwitch(cfg.nanoe_switch!, nanoe.state);
-                       }
-                     }}>
+            if (isCleaning) {
+              this._showToast('Nanoe cannot be toggled while coil cleaning is active');
+            } else if (!isOnline) {
+              this._showToast('Device is offline');
+            } else {
+              this._toggleSwitch(cfg.nanoe_switch!, nanoe.state);
+            }
+          }}>
                   <div class="toggle-left">
                     <div class="toggle-icon ${nanoe.state === 'on' ? 'active' : ''}">
                       <ha-icon icon="mdi:air-purifier"></ha-icon>
@@ -818,14 +824,14 @@ export class MirAIeACCard extends LitElement {
                 <div class="toggle-card ${!isOnline || isCleaning ? 'disabled' : ''}"
                      title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}"
                      @click=${() => {
-                       if (isCleaning) {
-                         this._showToast('Display LED cannot be toggled while coil cleaning is active');
-                       } else if (!isOnline) {
-                         this._showToast('Device is offline');
-                       } else {
-                         this._toggleSwitch(cfg.display_switch!, display.state);
-                       }
-                     }}>
+            if (isCleaning) {
+              this._showToast('Display LED cannot be toggled while coil cleaning is active');
+            } else if (!isOnline) {
+              this._showToast('Device is offline');
+            } else {
+              this._toggleSwitch(cfg.display_switch!, display.state);
+            }
+          }}>
                   <div class="toggle-left">
                     <div class="toggle-icon ${display.state === 'on' ? 'active' : ''}">
                       <ha-icon icon="mdi:eye"></ha-icon>
@@ -839,14 +845,14 @@ export class MirAIeACCard extends LitElement {
                 <div class="toggle-card ${isOn || isCleaning ? 'disabled' : ''}"
                      title="${isCleaning ? 'Coil cleaning cycle is currently running' : (isOn ? 'Coil clean cannot be started while AC is running' : 'Start coil self-cleaning cycle')}"
                      @click=${() => {
-                       if (isCleaning) {
-                         this._showToast('Coil cleaning cycle is currently running');
-                       } else if (isOn) {
-                         this._showToast('Coil clean cannot be started while AC is running');
-                       } else {
-                         this._pressButton(cfg.coil_clean_button!);
-                       }
-                     }}>
+            if (isCleaning) {
+              this._showToast('Coil cleaning cycle is currently running');
+            } else if (isOn) {
+              this._showToast('Coil clean cannot be started while AC is running');
+            } else {
+              this._pressButton(cfg.coil_clean_button!);
+            }
+          }}>
                   <div class="toggle-left">
                     <div class="toggle-icon ${coilSensor?.state === 'on' ? 'active' : ''}">
                       <ha-icon icon="mdi:spray-bottle"></ha-icon>
@@ -976,18 +982,22 @@ export class MirAIeACCard extends LitElement {
   private _adjustTemp(delta: number, current?: number, limit?: number): void {
     this._haptic('light');
     if (current == null) return;
+    const targetEntity = this._getEntityId();
+    if (!targetEntity) return;
     const next = Number(current) + delta;
     if (limit != null && ((delta < 0 && next < Number(limit)) || (delta > 0 && next > Number(limit)))) return;
-    const stateObj = this.hass?.states[this._config.entity];
+    const stateObj = this.hass?.states[targetEntity];
     if (stateObj?.state === 'auto') {
       this._showToast(`Temperature ${next}°C queued`);
     }
-    this.hass.callService('climate', 'set_temperature', { entity_id: this._config.entity, temperature: next });
+    this.hass.callService('climate', 'set_temperature', { entity_id: targetEntity, temperature: next });
   }
 
   private _setHvacMode(mode: string): void {
     this._haptic('light');
-    this.hass.callService('climate', 'set_hvac_mode', { entity_id: this._config.entity, hvac_mode: mode });
+    const targetEntity = this._getEntityId();
+    if (!targetEntity) return;
+    this.hass.callService('climate', 'set_hvac_mode', { entity_id: targetEntity, hvac_mode: mode });
   }
 
   private _setFanMode(s: any, mode: string): void {
@@ -1007,8 +1017,10 @@ export class MirAIeACCard extends LitElement {
 
   private _setPreset(preset: string): void {
     this._haptic('light');
+    const targetEntity = this._getEntityId();
+    if (!targetEntity) return;
     const targetPreset = (preset === 'cv_0' || preset === 'cv 0') ? 'none' : preset;
-    this.hass.callService('climate', 'set_preset_mode', { entity_id: this._config.entity, preset_mode: targetPreset });
+    this.hass.callService('climate', 'set_preset_mode', { entity_id: targetEntity, preset_mode: targetPreset });
   }
 
 
@@ -1043,11 +1055,11 @@ export class MirAIeACCard extends LitElement {
 
   private _modeColor(m: string): string {
     const map: Record<string, string> = {
-      cool:     'rgba(100, 181, 246, 0.18)',
-      dry:      'rgba(129, 199, 132, 0.18)',
+      cool: 'rgba(100, 181, 246, 0.18)',
+      dry: 'rgba(129, 199, 132, 0.18)',
       fan_only: 'rgba(179, 157, 219, 0.18)',
-      auto:     'rgba(255, 183,  77, 0.18)',
-      heat:     'rgba(255, 138, 101, 0.18)',
+      auto: 'rgba(255, 183,  77, 0.18)',
+      heat: 'rgba(255, 138, 101, 0.18)',
     };
     return map[m] ?? 'rgba(128, 128, 128, 0.12)';
   }
@@ -1066,7 +1078,7 @@ export class MirAIeACCard extends LitElement {
     return map[p] ?? 'mdi:play-circle-outline';
   }
 
-    private _sourceIcon(source: string): string {
+  private _sourceIcon(source: string): string {
     const s = (source || '').toLowerCase();
     if (s.includes('remote')) return 'mdi:remote';
     if (s.includes('switch')) return 'mdi:toggle-switch';
@@ -1075,7 +1087,7 @@ export class MirAIeACCard extends LitElement {
     return 'mdi:remote-desktop';
   }
 
-private _sourceLabel(s: string): string {
+  private _sourceLabel(s: string): string {
     if (!s) return 'Unknown';
     const trimmed = s.trim();
     const lower = trimmed.toLowerCase();
@@ -1107,15 +1119,15 @@ private _sourceLabel(s: string): string {
     const cfg = this._config;
     const a = stateObj.attributes;
     const modes = a.hvac_modes || [];
-    const fanMode      = a.fan_mode;
-    const fanModes     = a.fan_modes || [];
-    const swingV       = a.swing_mode;
-    const swingVModes  = a.swing_modes || [];
-    const swingH       = a.swing_horizontal_mode;
-    const swingHModes  = a.swing_horizontal_modes || [];
-    
+    const fanMode = a.fan_mode;
+    const fanModes = a.fan_modes || [];
+    const swingV = a.swing_mode;
+    const swingVModes = a.swing_modes || [];
+    const swingH = a.swing_horizontal_mode;
+    const swingHModes = a.swing_horizontal_modes || [];
+
     const isOnline = stateObj.state !== 'unavailable' && stateObj.state !== 'unknown';
-    const presetMode   = a.preset_mode;
+    const presetMode = a.preset_mode;
     const effectiveMin = presetMode === 'eco' ? 16 : minTemp;
     const effectiveMax = presetMode === 'eco' ? 30 : maxTemp;
     const displayValue = isOn ? (hvacMode === 'fan_only' ? 'FA' : (targetTemp != null ? `${targetTemp}°` : '--')) : (isOnline ? 'Off' : 'Offline');
@@ -1134,17 +1146,17 @@ private _sourceLabel(s: string): string {
     }
     const cvSorted = cvOptions.sort((x, y) => parseCv(y) - parseCv(x));
 
-    const nanoe        = cfg.nanoe_switch              ? this.hass.states[cfg.nanoe_switch]              : undefined;
-    const display      = cfg.display_switch            ? this.hass.states[cfg.display_switch]            : undefined;
-    const coilBtn      = cfg.coil_clean_button         ? this.hass.states[cfg.coil_clean_button]         : undefined;
-    const coilSensor   = cfg.coil_cleaning_sensor      ? this.hass.states[cfg.coil_cleaning_sensor]      : undefined;
-    const energyToday  = cfg.energy_today_sensor       ? this.hass.states[cfg.energy_today_sensor]       : undefined;
-    const energyYest   = cfg.energy_yesterday_sensor   ? this.hass.states[cfg.energy_yesterday_sensor]   : undefined;
-    const rssi         = cfg.rssi_sensor               ? this.hass.states[cfg.rssi_sensor]               : undefined;
-    const isCleaning   = coilSensor?.state === 'on';
+    const nanoe = cfg.nanoe_switch ? this.hass.states[cfg.nanoe_switch] : undefined;
+    const display = cfg.display_switch ? this.hass.states[cfg.display_switch] : undefined;
+    const coilBtn = cfg.coil_clean_button ? this.hass.states[cfg.coil_clean_button] : undefined;
+    const coilSensor = cfg.coil_cleaning_sensor ? this.hass.states[cfg.coil_cleaning_sensor] : undefined;
+    const energyToday = cfg.energy_today_sensor ? this.hass.states[cfg.energy_today_sensor] : undefined;
+    const energyYest = cfg.energy_yesterday_sensor ? this.hass.states[cfg.energy_yesterday_sensor] : undefined;
+    const rssi = cfg.rssi_sensor ? this.hass.states[cfg.rssi_sensor] : undefined;
+    const isCleaning = coilSensor?.state === 'on';
 
     /* 2.0 Hybrid Architecture Companion Entities with Auto-Discovery */
-    const baseId = cfg.entity.replace(/^climate\./, '');
+    const baseId = (stateObj.entity_id || this._getEntityId() || '').replace(/^climate\./, '');
     const findCompanionEntity = (configuredId: string | undefined, domain: string, patterns: string[]): any => {
       if (configuredId && this.hass.states[configuredId]) return this.hass.states[configuredId];
       for (const pat of patterns) {
@@ -1219,14 +1231,14 @@ private _sourceLabel(s: string): string {
               class="gh-power-btn ${isOn ? 'on' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}"
               title="${isCleaning ? 'Power cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Power')}"
               @click=${(e: Event) => {
-                if (isCleaning) {
-                  this._showToast('Power cannot be toggled while coil cleaning is active');
-                } else if (!isOnline) {
-                  this._showToast('Device is offline');
-                } else {
-                  this._togglePower(stateObj);
-                }
-              }}
+        if (isCleaning) {
+          this._showToast('Power cannot be toggled while coil cleaning is active');
+        } else if (!isOnline) {
+          this._showToast('Device is offline');
+        } else {
+          this._togglePower(stateObj);
+        }
+      }}
             >
               <ha-icon icon="mdi:power"></ha-icon>
             </button>
@@ -1261,20 +1273,20 @@ private _sourceLabel(s: string): string {
             class="gh-circular-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) <= Number(effectiveMin) ? `Minimum temperature reached (${effectiveMin}°)` : 'Decrease Temperature')))}"
             @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) {
-                this._showToast(`Minimum temperature reached (${effectiveMin}°)`);
-              } else {
-                const step = Number(a.target_temp_step ?? 1);
-                this._adjustTemp(-step, targetTemp, effectiveMin);
-              }
-            }}
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) <= Number(effectiveMin)) {
+          this._showToast(`Minimum temperature reached (${effectiveMin}°)`);
+        } else {
+          const step = Number(a.target_temp_step ?? 1);
+          this._adjustTemp(-step, targetTemp, effectiveMin);
+        }
+      }}
           >
             <ha-icon icon="mdi:minus"></ha-icon>
           </button>
@@ -1283,20 +1295,20 @@ private _sourceLabel(s: string): string {
             class="gh-circular-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) >= Number(effectiveMax) ? `Maximum temperature reached (${effectiveMax}°)` : 'Increase Temperature')))}"
             @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) {
-                this._showToast(`Maximum temperature reached (${effectiveMax}°)`);
-              } else {
-                const step = Number(a.target_temp_step ?? 1);
-                this._adjustTemp(step, targetTemp, effectiveMax);
-              }
-            }}
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) >= Number(effectiveMax)) {
+          this._showToast(`Maximum temperature reached (${effectiveMax}°)`);
+        } else {
+          const step = Number(a.target_temp_step ?? 1);
+          this._adjustTemp(step, targetTemp, effectiveMax);
+        }
+      }}
           >
             <ha-icon icon="mdi:plus"></ha-icon>
           </button>
@@ -1306,14 +1318,14 @@ private _sourceLabel(s: string): string {
           <!-- Mode Dropdown -->
           <div class="gh-select-wrapper ${this._ghDropdown === 'mode' ? 'active' : ''}">
             <button class="gh-custom-select" @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('HVAC mode cannot be changed while coil cleaning is active');
-              } else {
-                this._haptic('selection');
-                this._ghDropdown = this._ghDropdown === 'mode' ? null : 'mode';
-              }
-            }}>
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('HVAC mode cannot be changed while coil cleaning is active');
+        } else {
+          this._haptic('selection');
+          this._ghDropdown = this._ghDropdown === 'mode' ? null : 'mode';
+        }
+      }}>
               <span>Mode: ${this._modeLabel(hvacMode)}</span>
               <ha-icon icon="mdi:chevron-down"></ha-icon>
             </button>
@@ -1332,32 +1344,32 @@ private _sourceLabel(s: string): string {
           <!-- Preset Dropdown -->
           <div class="gh-select-wrapper ${this._ghDropdown === 'preset' ? 'active' : ''}" style="${!isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning ? 'opacity: 0.5;' : ''}">
             <button class="gh-custom-select" @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Presets cannot be changed while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to select presets');
-              } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-                this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
-              } else {
-                this._haptic('selection');
-                this._ghDropdown = this._ghDropdown === 'preset' ? null : 'preset';
-              }
-            }}>
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Presets cannot be changed while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to select presets');
+        } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+          this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
+        } else {
+          this._haptic('selection');
+          this._ghDropdown = this._ghDropdown === 'preset' ? null : 'preset';
+        }
+      }}>
               <span>Preset: ${presetMode && presetMode !== 'none' && !/^cv[\s_]/.test(presetMode) ? this._presetLabel(presetMode) : 'None'}</span>
               <ha-icon icon="mdi:chevron-down"></ha-icon>
             </button>
             ${this._ghDropdown === 'preset' ? html`
               <div class="gh-dropdown-menu">
                 ${stdPresets.map((p: string) => {
-                  const isActive = (!presetMode || presetMode === 'none' || /^cv[\s_]/.test(presetMode)) ? (p === 'none') : (presetMode === p);
-                  return html`
+        const isActive = (!presetMode || presetMode === 'none' || /^cv[\s_]/.test(presetMode)) ? (p === 'none') : (presetMode === p);
+        return html`
                     <button class="gh-dropdown-item ${isActive ? 'active' : ''}" 
                          @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setPreset(p); }}>
                       ${this._presetLabel(p)}
                     </button>
                   `;
-                })}
+      })}
               </div>
             ` : ''}
           </div>
@@ -1366,33 +1378,33 @@ private _sourceLabel(s: string): string {
           ${cvSorted.length > 0 ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'cv' ? 'active' : ''}" style="${!isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-                e.stopPropagation();
-                if (isCleaning) {
-                  this._showToast('Capacity limit cannot be changed while coil cleaning is active');
-                } else if (!isOn) {
-                  this._showToast('Turn on the AC to set capacity limits');
-                } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-                  this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
-                } else {
-                  this._haptic('selection');
-                  this._ghDropdown = this._ghDropdown === 'cv' ? null : 'cv';
-                }
-              }}>
+          e.stopPropagation();
+          if (isCleaning) {
+            this._showToast('Capacity limit cannot be changed while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to set capacity limits');
+          } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+            this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
+          } else {
+            this._haptic('selection');
+            this._ghDropdown = this._ghDropdown === 'cv' ? null : 'cv';
+          }
+        }}>
                 <span>Limit: ${stateObj.attributes.preset_mode && /^cv[\s_]/.test(stateObj.attributes.preset_mode) ? (parseCv(stateObj.attributes.preset_mode) === 0 ? 'Normal' : parseCv(stateObj.attributes.preset_mode) + '%') : 'Normal'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
               ${this._ghDropdown === 'cv' ? html`
                 <div class="gh-dropdown-menu">
                   ${cvSorted.map((cv: string) => {
-                    const pct = parseCv(cv);
-                    const isActive = stateObj.attributes.preset_mode === cv || (pct === 0 && (!stateObj.attributes.preset_mode || !/^cv[\s_]/.test(stateObj.attributes.preset_mode)));
-                    return html`
+          const pct = parseCv(cv);
+          const isActive = stateObj.attributes.preset_mode === cv || (pct === 0 && (!stateObj.attributes.preset_mode || !/^cv[\s_]/.test(stateObj.attributes.preset_mode)));
+          return html`
                       <button class="gh-dropdown-item ${isActive ? 'active' : ''}" 
                            @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setPreset(cv); }}>
                         ${pct === 0 ? 'Normal' : pct + '%'}
                       </button>
                     `;
-                  })}
+        })}
                 </div>
               ` : ''}
             </div>
@@ -1402,18 +1414,18 @@ private _sourceLabel(s: string): string {
           ${fanModes.length > 0 ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'fan' ? 'active' : ''}" style="${!isOn || hvacMode === 'dry' || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-                e.stopPropagation();
-                if (isCleaning) {
-                  this._showToast('Fan speed cannot be changed while coil cleaning is active');
-                } else if (!isOn) {
-                  this._showToast('Turn on the AC to adjust fan speed');
-                } else if (hvacMode === 'dry') {
-                  this._showToast('Fan speed is automatically managed in Dry mode');
-                } else {
-                  this._haptic('selection');
-                  this._ghDropdown = this._ghDropdown === 'fan' ? null : 'fan';
-                }
-              }}>
+          e.stopPropagation();
+          if (isCleaning) {
+            this._showToast('Fan speed cannot be changed while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust fan speed');
+          } else if (hvacMode === 'dry') {
+            this._showToast('Fan speed is automatically managed in Dry mode');
+          } else {
+            this._haptic('selection');
+            this._ghDropdown = this._ghDropdown === 'fan' ? null : 'fan';
+          }
+        }}>
                 <span>Fan: ${fanMode ? (fanMode.charAt(0).toUpperCase() + fanMode.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1434,16 +1446,16 @@ private _sourceLabel(s: string): string {
           ${swingVModes.length > 0 || swingV != null ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'swing_v' ? 'active' : ''}" style="${!isOn || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-                e.stopPropagation();
-                if (isCleaning) {
-                  this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
-                } else if (!isOn) {
-                  this._showToast('Turn on the AC to adjust swing vanes');
-                } else {
-                  this._haptic('selection');
-                  this._ghDropdown = this._ghDropdown === 'swing_v' ? null : 'swing_v';
-                }
-              }}>
+          e.stopPropagation();
+          if (isCleaning) {
+            this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust swing vanes');
+          } else {
+            this._haptic('selection');
+            this._ghDropdown = this._ghDropdown === 'swing_v' ? null : 'swing_v';
+          }
+        }}>
                 <span>V-Swing: ${swingV ? (swingV.charAt(0).toUpperCase() + swingV.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1464,16 +1476,16 @@ private _sourceLabel(s: string): string {
           ${swingHModes.length > 0 || swingH != null ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'swing_h' ? 'active' : ''}" style="${!isOn || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-                e.stopPropagation();
-                if (isCleaning) {
-                  this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
-                } else if (!isOn) {
-                  this._showToast('Turn on the AC to adjust horizontal swing');
-                } else {
-                  this._haptic('selection');
-                  this._ghDropdown = this._ghDropdown === 'swing_h' ? null : 'swing_h';
-                }
-              }}>
+          e.stopPropagation();
+          if (isCleaning) {
+            this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust horizontal swing');
+          } else {
+            this._haptic('selection');
+            this._ghDropdown = this._ghDropdown === 'swing_h' ? null : 'swing_h';
+          }
+        }}>
                 <span>H-Swing: ${swingH ? (swingH.charAt(0).toUpperCase() + swingH.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1501,14 +1513,14 @@ private _sourceLabel(s: string): string {
                 style="${isOn ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
                 title="${isCleaning ? 'Coil cleaning cycle is currently running' : (isOn ? 'Coil clean cannot be started while AC is running' : 'Start coil self-cleaning cycle')}"
                 @click=${() => {
-                  if (isCleaning) {
-                    this._showToast('Coil cleaning cycle is currently running');
-                  } else if (isOn) {
-                    this._showToast('Coil clean cannot be started while AC is running');
-                  } else if (coilBtn) {
-                    this._pressButton(cfg.coil_clean_button!);
-                  }
-                }}
+            if (isCleaning) {
+              this._showToast('Coil cleaning cycle is currently running');
+            } else if (isOn) {
+              this._showToast('Coil clean cannot be started while AC is running');
+            } else if (coilBtn) {
+              this._pressButton(cfg.coil_clean_button!);
+            }
+          }}
               >
                 <ha-icon icon="mdi:spray"></ha-icon>
                 ${coilSensor?.state === 'on' ? 'Cleaning…' : 'Clean Coil'}
@@ -1528,28 +1540,28 @@ private _sourceLabel(s: string): string {
           <div class="gh-extra-chips" style="margin-top: 10px;">
             ${activeBackendSwitch ? html`
               ${(() => {
-                const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
-                const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
-                return html`
+            const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
+            const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
+            return html`
                   <div
                     class="gh-chip ${isCloud ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
                     style="${isAuto ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
                     title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend')}"
                     @click=${() => {
-                      if (isAuto) {
-                        this._showToast('Backend transport is managed automatically in Auto Failover mode');
-                      } else if (isCleaning) {
-                        this._showToast('Backend cannot be switched while coil cleaning is active');
-                      } else {
-                        this._toggleSwitch(activeBackendSwitch.entity_id, activeBackendSwitch.state);
-                      }
-                    }}
+                if (isAuto) {
+                  this._showToast('Backend transport is managed automatically in Auto Failover mode');
+                } else if (isCleaning) {
+                  this._showToast('Backend cannot be switched while coil cleaning is active');
+                } else {
+                  this._toggleSwitch(activeBackendSwitch.entity_id, activeBackendSwitch.state);
+                }
+              }}
                   >
                     <ha-icon icon="${isCloud ? 'mdi:cloud-sync' : 'mdi:remote'}"></ha-icon>
                     Backend: ${isCloud ? 'Cloud' : 'IR'}
                   </div>
                 `;
-              })()}
+          })()}
             ` : ''}
 
             ${hybridSwitch ? html`
@@ -1557,12 +1569,12 @@ private _sourceLabel(s: string): string {
                 class="gh-chip ${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'active' : ''} ${isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'Hybrid mode cannot be toggled while coil cleaning is active' : 'Click to toggle between Auto Failover and Manual backend'}"
                 @click=${() => {
-                  if (isCleaning) {
-                    this._showToast('Hybrid mode cannot be toggled while coil cleaning is active');
-                  } else {
-                    this._toggleSwitch(hybridSwitch.entity_id, hybridSwitch.state);
-                  }
-                }}
+            if (isCleaning) {
+              this._showToast('Hybrid mode cannot be toggled while coil cleaning is active');
+            } else {
+              this._toggleSwitch(hybridSwitch.entity_id, hybridSwitch.state);
+            }
+          }}
               >
                 <ha-icon icon="${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'mdi:refresh-auto' : 'mdi:hand-back-right'}"></ha-icon>
                 ${hybridSwitch.state === 'auto' || hybridSwitch.state === 'on' ? 'Auto Failover' : 'Manual'}
@@ -1618,7 +1630,7 @@ private _sourceLabel(s: string): string {
     const displayValue = isOn ? (hvacMode === 'fan_only' ? 'FA' : (targetTemp != null ? `${targetTemp}°` : '--')) : (isOnline ? 'Off' : 'Offline');
     const coilSensor = this._config.coil_cleaning_sensor ? this.hass.states[this._config.coil_cleaning_sensor] : undefined;
     const isCleaning = coilSensor?.state === 'on';
-    
+
     const activeStrs: string[] = [];
     if (isOn) {
       activeStrs.push(this._modeLabel(hvacMode));
@@ -1641,15 +1653,15 @@ private _sourceLabel(s: string): string {
             class="compact-icon-btn ${isOn ? 'on' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Power cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Power')}"
             @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Power cannot be toggled while coil cleaning is active');
-              } else if (!isOnline) {
-                this._showToast('Device is offline');
-              } else {
-                this._togglePower(stateObj);
-              }
-            }}
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Power cannot be toggled while coil cleaning is active');
+        } else if (!isOnline) {
+          this._showToast('Device is offline');
+        } else {
+          this._togglePower(stateObj);
+        }
+      }}
           >
             <ha-icon icon="mdi:power"></ha-icon>
           </button>
@@ -1666,19 +1678,19 @@ private _sourceLabel(s: string): string {
             class="compact-action-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) <= Number(minTemp)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) <= Number(minTemp) ? `Minimum temperature reached (${minTemp}°)` : 'Decrease Temperature')))}"
             @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) <= Number(minTemp)) {
-                this._showToast(`Minimum temperature reached (${minTemp}°)`);
-              } else {
-                this._adjustTemp(-1, targetTemp, minTemp);
-              }
-            }}
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) <= Number(minTemp)) {
+          this._showToast(`Minimum temperature reached (${minTemp}°)`);
+        } else {
+          this._adjustTemp(-1, targetTemp, minTemp);
+        }
+      }}
           >
             <ha-icon icon="mdi:minus"></ha-icon>
           </button>
@@ -1699,19 +1711,19 @@ private _sourceLabel(s: string): string {
             class="compact-action-btn ${!isOn || hvacMode === 'fan_only' || (targetTemp != null && Number(targetTemp) >= Number(maxTemp)) || isCleaning ? 'disabled' : ''}"
             title="${isCleaning ? 'Temperature cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust temperature' : (hvacMode === 'fan_only' ? 'Temperature cannot be adjusted in Fan Only mode' : (targetTemp != null && Number(targetTemp) >= Number(maxTemp) ? `Maximum temperature reached (${maxTemp}°)` : 'Increase Temperature')))}"
             @click=${(e: Event) => {
-              e.stopPropagation();
-              if (isCleaning) {
-                this._showToast('Temperature cannot be adjusted while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to adjust temperature');
-              } else if (hvacMode === 'fan_only') {
-                this._showToast('Temperature cannot be adjusted in Fan Only mode');
-              } else if (targetTemp != null && Number(targetTemp) >= Number(maxTemp)) {
-                this._showToast(`Maximum temperature reached (${maxTemp}°)`);
-              } else {
-                this._adjustTemp(1, targetTemp, maxTemp);
-              }
-            }}
+        e.stopPropagation();
+        if (isCleaning) {
+          this._showToast('Temperature cannot be adjusted while coil cleaning is active');
+        } else if (!isOn) {
+          this._showToast('Turn on the AC to adjust temperature');
+        } else if (hvacMode === 'fan_only') {
+          this._showToast('Temperature cannot be adjusted in Fan Only mode');
+        } else if (targetTemp != null && Number(targetTemp) >= Number(maxTemp)) {
+          this._showToast(`Maximum temperature reached (${maxTemp}°)`);
+        } else {
+          this._adjustTemp(1, targetTemp, maxTemp);
+        }
+      }}
           >
             <ha-icon icon="mdi:plus"></ha-icon>
           </button>
@@ -1725,5 +1737,5 @@ private _sourceLabel(s: string): string {
 
 // Dual registration for seamless backward-compatibility
 if (!customElements.get('miraie-ac-card')) {
-  customElements.define('miraie-ac-card', class extends MirAIeACCard {});
+  customElements.define('miraie-ac-card', class extends MirAIeACCard { });
 }

@@ -114,6 +114,7 @@ energy_yesterday_sensor: sensor.living_room_ac_energy_yesterday
 ### Project Contributors & AI Attribution
 * **Lead Architecture & Design**: [@selvakk2k](https://github.com/selvakk2k) — Lovelace UX design, styling tokens, and hardware verification on Indian AC models.
 * **Code Implementation & Engineering**: **Antigravity** (Google DeepMind) — custom card component architecture, dynamic slider interactions, and HACS compliance.
+* **Automated Code Review & Auditing**: **CodeRabbit** ([@coderabbitai](https://github.com/coderabbitai)) — automated pull request and pre-commit code reviews, edge case detection, and security verification.
 * **Pre-Release Code Review & Auditing**: **Claude** (Anthropic) — independent code review, security audits, and edge-case verification.
 
 Licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
