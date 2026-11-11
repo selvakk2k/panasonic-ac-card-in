@@ -1,6 +1,6 @@
 # Panasonic AC India Card (`panasonic-ac-card-in`)
 
-[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=flat-square)](https://github.com/hacs/default)
+[![Marketplace Default](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg?style=flat-square)](https://www.home-assistant.io/integrations/marketplace/)
 [![Stable](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?label=Stable&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases/latest)
 [![Beta](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?include_prereleases&label=Beta&color=orange&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases)
 [![AI-Assisted](https://img.shields.io/badge/AI%20Assisted-Antigravity%20%7C%20Claude-blueviolet?style=flat-square&logo=google)](https://github.com/selvakk2k)
@@ -38,12 +38,24 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 
 ## Installation
 
-### Method 1: Via HACS (Recommended)
+### Method 1: Via Home Assistant Marketplace (Recommended)
+
+*Requires Home Assistant **2026.11** or newer. (On an older version? Expand the legacy HACS instructions below.)*
+
+[![Open your Home Assistant instance and open a repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=selvakk2k&repository=panasonic-ac-card-in&category=plugin)
+
+1. Click the **Open Marketplace repository** button above, or go to **Settings** → **Marketplace** in Home Assistant.
+2. Search for **Panasonic AC India Card**, select **Download**, and reload your dashboard.
+
+<details>
+<summary>Home Assistant 2026.10 or older (Legacy HACS)</summary>
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=selvakk2k&repository=panasonic-ac-card-in&category=plugin)
 
 1. Click the **Open repository in HACS** button above, or open **HACS** from your Home Assistant sidebar.
 2. Search for **Panasonic AC India Card**, click **Download**, and reload your dashboard.
+
+</details>
 
 ### Method 2: Manual Installation
 1. Download `miraie-ac-card.js` from the [Releases](https://github.com/selvakk2k/panasonic-ac-card-in/releases) page.
@@ -113,7 +125,7 @@ energy_yesterday_sensor: sensor.living_room_ac_energy_yesterday
 
 ### Project Contributors & AI Attribution
 * **Lead Architecture & Design**: [@selvakk2k](https://github.com/selvakk2k) — Lovelace UX design, styling tokens, and hardware verification on Indian AC models.
-* **Code Implementation & Engineering**: **Antigravity** (Google DeepMind) — custom card component architecture, dynamic slider interactions, and HACS compliance.
+* **Code Implementation & Engineering**: **Antigravity** (Google DeepMind) — custom card component architecture, dynamic slider interactions, and Marketplace/HACS compatibility.
 * **Automated Code Review & Auditing**: **CodeRabbit** ([@coderabbitai](https://github.com/coderabbitai)) — automated pull request and pre-commit code reviews, edge case detection, and security verification.
 * **Pre-Release Code Review & Auditing**: **Claude** (Anthropic) — independent code review, security audits, and edge-case verification.
 
