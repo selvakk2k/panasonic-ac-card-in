@@ -1,10 +1,12 @@
 # Panasonic AC India Card (`panasonic-ac-card-in`)
 
-[![Marketplace Default](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg?style=flat-square)](https://www.home-assistant.io/integrations/marketplace/)
-[![Stable](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?label=Stable&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases/latest)
-[![Beta](https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?include_prereleases&label=Beta&color=orange&style=flat-square)](https://github.com/selvakk2k/panasonic-ac-card-in/releases)
-[![AI-Assisted](https://img.shields.io/badge/AI%20Assisted-Antigravity%20%7C%20Claude-blueviolet?style=flat-square&logo=google)](https://github.com/selvakk2k)
-[![AI Attribution](https://img.shields.io/badge/AI%20Attribution-AIA%20PAI%20Nc%20Hin-orange?style=flat-square)](https://aiattribution.github.io/interpret-attribution)
+<p align="center">
+  <a href="https://www.home-assistant.io/integrations/marketplace/"><img src="https://img.shields.io/badge/Marketplace-Default-41BDF5.svg?style=flat-square" alt="Marketplace Default"></a>
+  <a href="https://github.com/selvakk2k/panasonic-ac-card-in/releases/latest"><img src="https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?label=Stable&style=flat-square" alt="Stable"></a>
+  <a href="https://github.com/selvakk2k/panasonic-ac-card-in/releases"><img src="https://img.shields.io/github/v/release/selvakk2k/panasonic-ac-card-in?include_prereleases&label=Beta&color=orange&style=flat-square" alt="Beta"></a>
+  <a href="https://github.com/selvakk2k"><img src="https://img.shields.io/badge/AI%20Assisted-Antigravity%20%7C%20Claude%20%7C%20CodeRabbit-blueviolet?style=flat-square" alt="AI-Assisted"></a>
+  <a href="https://aiattribution.github.io/interpret-attribution"><img src="https://img.shields.io/badge/AI%20Attribution-AIA%20PAI%20Nc%20Hin-orange?style=flat-square" alt="AI Attribution"></a>
+</p>
 
 A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian market, designed for use with the [Panasonic AC India Integration](https://github.com/selvakk2k/ha-panasonic-ac-in).
 
