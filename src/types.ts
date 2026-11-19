@@ -13,7 +13,7 @@ export interface MirAIeCardConfig {
   humidity_sensor?: string;
   // Controls
   nanoe_switch?: string;
-  display_switch?: string;
+  display_switch?: string; // Supports either switch.* (On/Off) or select.* (Display Mode: On/Night/Off)
   coil_clean_button?: string;
   coil_cleaning_sensor?: string;
   filter_alert_sensor?: string;

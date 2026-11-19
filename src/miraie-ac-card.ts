@@ -117,7 +117,7 @@ export class MirAIeACCard extends LitElement {
           schema: [
 
             { name: 'nanoe_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'display_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'display_switch', selector: { entity: { domain: ['switch', 'select'], integration: 'miraie_in' } } },
             { name: 'coil_clean_button', selector: { entity: { domain: 'button', integration: 'miraie_in' } } },
             { name: 'coil_cleaning_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             {
@@ -244,6 +244,13 @@ export class MirAIeACCard extends LitElement {
     return undefined;
   }
 
+  private _findDisplayEntity(configuredId?: string): any {
+    if (configuredId && this.hass?.states?.[configuredId]) return this.hass.states[configuredId];
+    const sw = this._findCompanionEntity(configuredId, 'switch', ['display', 'led']);
+    if (sw) return sw;
+    return this._findCompanionEntity(configuredId, 'select', ['display_mode', 'display']);
+  }
+
   protected render(): TemplateResult | null {
     if (!this.hass || !this._config) return null;
 
@@ -294,7 +301,7 @@ export class MirAIeACCard extends LitElement {
 
     /* Helper entities with 3-tier auto-discovery */
     const nanoe = this._findCompanionEntity(cfg.nanoe_switch, 'switch', ['nanoe', 'nanoe_switch']);
-    const display = this._findCompanionEntity(cfg.display_switch, 'switch', ['display', 'led']);
+    const display = this._findDisplayEntity(cfg.display_switch);
     const coilBtn = this._findCompanionEntity(cfg.coil_clean_button, 'button', ['start_coil_clean', 'coil_clean']);
     const coilSensor = this._findCompanionEntity(cfg.coil_cleaning_sensor, 'binary_sensor', ['coil_cleaning', 'coil_clean']);
     const filterAlert = this._findCompanionEntity(cfg.filter_alert_sensor, 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']);
@@ -815,27 +822,32 @@ export class MirAIeACCard extends LitElement {
                   <ha-switch .checked=${nanoe.state === 'on'} ?disabled=${!isOnline}></ha-switch>
                 </div>
               ` : ''}
-              ${display ? html`
+              ${display ? (() => {
+          const isDisplayOn = display.state === 'on' || display.state === 'night';
+          const displayIcon = display.state === 'night' ? 'mdi:weather-night' : 'mdi:eye';
+          const displayLabel = display.state === 'night' ? 'AC LED (Night)' : 'AC LED';
+          return html`
                 <div class="toggle-card ${!isOnline || isCleaning ? 'disabled' : ''}"
-                     title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}"
+                     title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : (display.state === 'night' ? 'Display in Night Mode (click to cycle)' : 'Toggle indoor unit LED display'))}"
                      @click=${() => {
-            if (isCleaning) {
-              this._showToast('Display LED cannot be toggled while coil cleaning is active');
-            } else if (!isOnline) {
-              this._showToast('Device is offline');
-            } else {
-              this._toggleSwitch(display.entity_id, display.state);
-            }
-          }}>
+              if (isCleaning) {
+                this._showToast('Display LED cannot be toggled while coil cleaning is active');
+              } else if (!isOnline) {
+                this._showToast('Device is offline');
+              } else {
+                this._handleDisplayToggle(display);
+              }
+            }}>
                   <div class="toggle-left">
-                    <div class="toggle-icon ${display.state === 'on' ? 'active' : ''}">
-                      <ha-icon icon="mdi:eye"></ha-icon>
+                    <div class="toggle-icon ${isDisplayOn ? 'active' : ''}">
+                      <ha-icon icon="${displayIcon}"></ha-icon>
                     </div>
-                    <span class="toggle-label">AC LED</span>
+                    <span class="toggle-label">${displayLabel}</span>
                   </div>
-                  <ha-switch .checked=${display.state === 'on'} ?disabled=${!isOnline}></ha-switch>
+                  <ha-switch .checked=${isDisplayOn} ?disabled=${!isOnline}></ha-switch>
                 </div>
-              ` : ''}
+              `;
+        })() : ''}
               ${coilBtn ? html`
                 <div class="toggle-card ${isOn || isCleaning ? 'disabled' : ''}"
                      title="${isCleaning ? 'Coil cleaning cycle is currently running' : (isOn ? 'Coil clean cannot be started while AC is running' : 'Start coil self-cleaning cycle')}"
@@ -1031,6 +1043,25 @@ export class MirAIeACCard extends LitElement {
     this.hass.callService('switch', currentState === 'on' ? 'turn_off' : 'turn_on', { entity_id: entityId });
   }
 
+  private _handleDisplayToggle(display: any): void {
+    this._haptic('light');
+    if (!display || !this.hass) return;
+    if (display.entity_id.startsWith('select.')) {
+      const options: string[] = display.attributes?.options || ['on', 'off'];
+      const currentIndex = options.indexOf(display.state);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % options.length : 0;
+      const nextOption = options[nextIndex];
+      this.hass.callService('select', 'select_option', {
+        entity_id: display.entity_id,
+        option: nextOption,
+      });
+    } else {
+      this.hass.callService('switch', display.state === 'on' ? 'turn_off' : 'turn_on', {
+        entity_id: display.entity_id,
+      });
+    }
+  }
+
   private _pressButton(entityId: string): void {
     this._haptic('medium');
     this.hass.callService('button', 'press', { entity_id: entityId });
@@ -1202,7 +1233,7 @@ export class MirAIeACCard extends LitElement {
 
     /* Helper entities with 3-tier auto-discovery */
     const nanoe = this._findCompanionEntity(cfg.nanoe_switch, 'switch', ['nanoe', 'nanoe_switch']);
-    const display = this._findCompanionEntity(cfg.display_switch, 'switch', ['display', 'led']);
+    const display = this._findDisplayEntity(cfg.display_switch);
     const coilBtn = this._findCompanionEntity(cfg.coil_clean_button, 'button', ['start_coil_clean', 'coil_clean']);
     const coilSensor = this._findCompanionEntity(cfg.coil_cleaning_sensor, 'binary_sensor', ['coil_cleaning', 'coil_clean']);
     const filterAlert = this._findCompanionEntity(cfg.filter_alert_sensor, 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']);
@@ -1537,7 +1568,7 @@ export class MirAIeACCard extends LitElement {
         ${nanoe || display || coilBtn || energyToday || energyYest ? html`
           <div class="gh-extra-chips">
             ${nanoe ? html`<div class="gh-chip ${nanoe.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}" @click=${() => isCleaning ? this._showToast('Nanoe cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(nanoe.entity_id, nanoe.state))}><ha-icon icon="mdi:virus-outline"></ha-icon>Nanoe</div>` : ''}
-            ${display ? html`<div class="gh-chip ${display.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(display.entity_id, display.state))}><ha-icon icon="mdi:lightbulb-outline"></ha-icon>Display</div>` : ''}
+            ${display ? (() => { const isDisplayOn = display.state === 'on' || display.state === 'night'; const displayIcon = display.state === 'night' ? 'mdi:weather-night' : 'mdi:lightbulb-outline'; const displaySuffix = display.state === 'night' ? ' (Night)' : ''; return html`<div class="gh-chip ${isDisplayOn ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._handleDisplayToggle(display))}><ha-icon icon="${displayIcon}"></ha-icon>Display${displaySuffix}</div>`; })() : ''}
             ${coilBtn || coilSensor ? html`
               <div
                 class="gh-chip ${coilSensor?.state === 'on' ? 'active' : ''} ${isOn || isCleaning ? 'disabled' : ''}"
