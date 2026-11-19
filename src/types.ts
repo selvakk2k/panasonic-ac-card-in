@@ -22,6 +22,7 @@ export interface MirAIeCardConfig {
   active_backend_switch?: string;
   ir_blaster_sensor?: string;
   cloud_mqtt_sensor?: string;
+  local_udp_sensor?: string;
   device_online_sensor?: string;
   control_source_sensor?: string;
   // Diagnostics

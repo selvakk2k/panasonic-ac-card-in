@@ -123,6 +123,7 @@ assert(cardSource.includes("if (p === 'boost') return 'Powerful';") && cardSourc
 
 // Check source label mapping in _sourceLabel
 assert(cardSource.includes("if (lower === 'ir') return 'IR';") && cardSource.includes("if (lower === 'cloud') return 'Cloud';"), 'Transport source label mapping formats IR and Cloud correctly.');
+assert(cardSource.includes("if (lower === 'local udp' || lower === 'local_udp' || lower === 'udp') return 'Local UDP';"), 'Transport source label mapping formats Local UDP correctly.');
 assert(cardSource.includes("if (lower === 'ir blaster' || lower === 'ir_blaster') return 'IR Blaster';"), 'Source label handles "IR Blaster" with uppercase acronym and Title Case.');
 assert(cardSource.includes("if (lower === 'ir remote' || lower === 'ir_remote') return 'IR Remote';"), 'Source label handles "IR Remote" with uppercase acronym and Title Case.');
 
@@ -133,6 +134,7 @@ function simulateSourceLabel(s) {
   const lower = trimmed.toLowerCase();
   if (lower === 'ir') return 'IR';
   if (lower === 'cloud') return 'Cloud';
+  if (lower === 'local udp' || lower === 'local_udp' || lower === 'udp') return 'Local UDP';
   if (lower === 'ir blaster' || lower === 'ir_blaster') return 'IR Blaster';
   if (lower === 'ir remote' || lower === 'ir_remote') return 'IR Remote';
   if (lower === 'ir failover' || lower === 'ir_failover') return 'IR Failover';
@@ -143,6 +145,7 @@ function simulateSourceLabel(s) {
     .map(w => {
       const lw = w.toLowerCase();
       if (lw === 'ir') return 'IR';
+      if (lw === 'udp') return 'UDP';
       if (lw === 'mqtt') return 'MQTT';
       if (lw === 'ha') return 'HA';
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
@@ -156,6 +159,8 @@ assert(simulateSourceLabel('ir remote') === 'IR Remote', 'Source label converts 
 assert(simulateSourceLabel('IR Remote') === 'IR Remote', 'Source label preserves "IR Remote"');
 assert(simulateSourceLabel('ir failover (offline)') === 'IR Failover (Offline)', 'Source label converts "ir failover (offline)" -> "IR Failover (Offline)"');
 assert(simulateSourceLabel('cloud') === 'Cloud', 'Source label converts "cloud" -> "Cloud"');
+assert(simulateSourceLabel('local udp') === 'Local UDP', 'Source label converts "local udp" -> "Local UDP"');
+assert(simulateSourceLabel('local_udp') === 'Local UDP', 'Source label converts "local_udp" -> "Local UDP"');
 
 // ─────────────────────────────────────────────
 // Summary

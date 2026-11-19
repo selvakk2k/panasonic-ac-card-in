@@ -104,10 +104,11 @@ export class MirAIeACCard extends LitElement {
         {
           name: '', type: 'expandable', title: '2.0 Hybrid Transport Architecture (Auto-Discovered if blank)', icon: 'mdi:swap-horizontal-circle-outline',
           schema: [
+            { name: 'local_udp_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+            { name: 'cloud_mqtt_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             { name: 'hybrid_submode_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
             { name: 'active_backend_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
             { name: 'ir_blaster_sensor', selector: { entity: { domain: ['binary_sensor', 'infrared', 'remote'] } } },
-            { name: 'cloud_mqtt_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             { name: 'control_source_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
           ],
         },
@@ -223,6 +224,26 @@ export class MirAIeACCard extends LitElement {
     return '';
   }
 
+  private _findCompanionEntity(configuredId: string | undefined, domain: string, patterns: string[]): any {
+    if (configuredId && this.hass?.states?.[configuredId]) return this.hass.states[configuredId];
+    if (!this.hass?.states) return undefined;
+    const baseId = (this._getEntityId() || '').replace(/^climate\./, '');
+    for (const pat of patterns) {
+      const fullId = `${domain}.${pat}`;
+      if (this.hass.states[fullId]) return this.hass.states[fullId];
+      if (baseId) {
+        const prefId = `${domain}.${baseId}_${pat}`;
+        if (this.hass.states[prefId]) return this.hass.states[prefId];
+      }
+    }
+    const keys = Object.keys(this.hass.states);
+    for (const pat of patterns) {
+      const match = keys.find(k => k.startsWith(`${domain}.${baseId}_`) && k.includes(pat));
+      if (match) return this.hass.states[match];
+    }
+    return undefined;
+  }
+
   protected render(): TemplateResult | null {
     if (!this.hass || !this._config) return null;
 
@@ -271,67 +292,41 @@ export class MirAIeACCard extends LitElement {
       humidVal = Number(humidVal).toFixed(1);
     }
 
-    /* Helper entities */
-
-    const nanoe = cfg.nanoe_switch ? this.hass.states[cfg.nanoe_switch] : undefined;
-    const display = cfg.display_switch ? this.hass.states[cfg.display_switch] : undefined;
-    const coilBtn = cfg.coil_clean_button ? this.hass.states[cfg.coil_clean_button] : undefined;
-    const coilSensor = cfg.coil_cleaning_sensor ? this.hass.states[cfg.coil_cleaning_sensor] : undefined;
-    const filterAlert = cfg.filter_alert_sensor ? this.hass.states[cfg.filter_alert_sensor] : undefined;
-    const rssi = cfg.rssi_sensor ? this.hass.states[cfg.rssi_sensor] : undefined;
-    const energyToday = cfg.energy_today_sensor ? this.hass.states[cfg.energy_today_sensor] : undefined;
-    const energyYest = cfg.energy_yesterday_sensor ? this.hass.states[cfg.energy_yesterday_sensor] : undefined;
-    const isCleaning = coilSensor?.state === 'on';
-
-    /* 2.0 Hybrid Architecture Companion Entities with Auto-Discovery */
-    const baseId = (stateObj.entity_id || this._getEntityId() || '').replace(/^climate\./, '');
-    const findCompanionEntity = (configuredId: string | undefined, domain: string, patterns: string[]): any => {
-      if (configuredId && this.hass.states[configuredId]) return this.hass.states[configuredId];
-      for (const pat of patterns) {
-        const fullId = `${domain}.${pat}`;
-        if (this.hass.states[fullId]) return this.hass.states[fullId];
-      }
-      const keys = Object.keys(this.hass.states);
-      for (const pat of patterns) {
-        const match = keys.find(k => k.startsWith(`${domain}.${baseId}_`) && k.includes(pat));
-        if (match) return this.hass.states[match];
-      }
-      return undefined;
-    };
-
-    const hybridSwitch = findCompanionEntity(cfg.hybrid_submode_switch, 'switch', [
-      `${baseId}_hybrid_automatic_control`,
-      `${baseId}_hybrid_submode`,
-      `${baseId}_hybrid_control`,
+    /* Helper entities with 3-tier auto-discovery */
+    const nanoe = this._findCompanionEntity(cfg.nanoe_switch, 'switch', ['nanoe', 'nanoe_switch']);
+    const display = this._findCompanionEntity(cfg.display_switch, 'switch', ['display', 'led']);
+    const coilBtn = this._findCompanionEntity(cfg.coil_clean_button, 'button', ['start_coil_clean', 'coil_clean']);
+    const coilSensor = this._findCompanionEntity(cfg.coil_cleaning_sensor, 'binary_sensor', ['coil_cleaning', 'coil_clean']);
+    const filterAlert = this._findCompanionEntity(cfg.filter_alert_sensor, 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']);
+    const rssi = this._findCompanionEntity(cfg.rssi_sensor, 'sensor', ['rssi', 'signal']);
+    const energyToday = this._findCompanionEntity(cfg.energy_today_sensor, 'sensor', ['today_s_energy', 'energy_today', 'today_energy']);
+    const energyYest = this._findCompanionEntity(cfg.energy_yesterday_sensor, 'sensor', ['yesterday_s_energy', 'energy_yesterday', 'yesterday_energy']);
+    const localUdp = this._findCompanionEntity(cfg.local_udp_sensor, 'binary_sensor', ['local_udp_connected', 'local_udp', 'udp_connected']);
+    const cloudMqtt = this._findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', ['cloud_mqtt_connected', 'cloud_mqtt']);
+    const irBlaster = this._findCompanionEntity(cfg.ir_blaster_sensor, 'binary_sensor', [
+      'ir_blaster_available',
+      'ir_transmitter_available',
+      'ir_blaster_transmitter_availability',
+      'ir_blaster'
+    ]);
+    const hybridSwitch = this._findCompanionEntity(cfg.hybrid_submode_switch, 'switch', [
+      'hybrid_automatic_control',
+      'hybrid_submode',
+      'hybrid_control',
       'hybrid'
     ]);
-
-    const activeBackendSwitch = findCompanionEntity(cfg.active_backend_switch, 'switch', [
-      `${baseId}_primary_transport_backend_cloud`,
-      `${baseId}_primary_transport_backend`,
-      `${baseId}_active_backend`,
+    const activeBackendSwitch = this._findCompanionEntity(cfg.active_backend_switch, 'switch', [
+      'primary_transport_backend_cloud',
+      'primary_transport_backend',
+      'active_backend',
       'backend',
       'transport'
     ]);
-
-    const irBlaster = findCompanionEntity(cfg.ir_blaster_sensor, 'binary_sensor', [
-      `${baseId}_ir_blaster_available`,
-      `${baseId}_ir_transmitter_available`,
-      `${baseId}_ir_blaster_transmitter_availability`,
-      'ir_blaster'
+    const controlSource = this._findCompanionEntity(cfg.control_source_sensor, 'sensor', [
+      'last_controlled_via',
+      'control_source'
     ]);
-
-    const cloudMqtt = findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', [
-      `${baseId}_cloud_mqtt_connected`,
-      `${baseId}_cloud_mqtt`,
-      'cloud_mqtt'
-    ]);
-
-    const controlSource = findCompanionEntity(cfg.control_source_sensor, 'sensor', [
-      `${baseId}_last_controlled_via`,
-      `${baseId}_control_source`,
-      'last_controlled_via'
-    ]);
+    const isCleaning = coilSensor?.state === 'on';
 
     /* Convertible step-slider data */
     let cvOptions: string[] = [];
@@ -524,15 +519,15 @@ export class MirAIeACCard extends LitElement {
               <div class="segmented-bar connection-switches">
                 ${activeBackendSwitch ? html`
                   ${(() => {
-            const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
+            const bInfo = this._getBackendInfo(activeBackendSwitch, a);
             const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
             return html`
                       <button
                         class="segmented-item ${!isAuto ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
-                        title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend')}"
+                        title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend' + bInfo.fallbackText)}"
                         @click=${() => {
                 if (isAuto) {
-                  this._showToast('Backend transport is managed automatically in Auto Failover mode');
+                  this._showToast('Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText);
                 } else if (isCleaning) {
                   this._showToast('Backend cannot be switched while coil cleaning is active');
                 } else {
@@ -540,8 +535,8 @@ export class MirAIeACCard extends LitElement {
                 }
               }}
                       >
-                        <ha-icon icon="${isCloud ? 'mdi:cloud-sync' : 'mdi:remote'}"></ha-icon>
-                        ${isCloud ? 'Backend: Cloud' : 'Backend: IR'}
+                        <ha-icon icon="${bInfo.icon}"></ha-icon>
+                        ${bInfo.label}
                       </button>
                     `;
           })()}
@@ -808,7 +803,7 @@ export class MirAIeACCard extends LitElement {
             } else if (!isOnline) {
               this._showToast('Device is offline');
             } else {
-              this._toggleSwitch(cfg.nanoe_switch!, nanoe.state);
+              this._toggleSwitch(nanoe.entity_id, nanoe.state);
             }
           }}>
                   <div class="toggle-left">
@@ -829,7 +824,7 @@ export class MirAIeACCard extends LitElement {
             } else if (!isOnline) {
               this._showToast('Device is offline');
             } else {
-              this._toggleSwitch(cfg.display_switch!, display.state);
+              this._toggleSwitch(display.entity_id, display.state);
             }
           }}>
                   <div class="toggle-left">
@@ -850,7 +845,7 @@ export class MirAIeACCard extends LitElement {
             } else if (isOn) {
               this._showToast('Coil clean cannot be started while AC is running');
             } else {
-              this._pressButton(cfg.coil_clean_button!);
+              this._pressButton(coilBtn.entity_id);
             }
           }}>
                   <div class="toggle-left">
@@ -874,7 +869,7 @@ export class MirAIeACCard extends LitElement {
             <div class="section-title">Energy Consumption</div>
             <div class="energy-row">
               ${energyToday ? html`
-                <div class="energy-card" @click=${() => this._showMoreInfo(cfg.energy_today_sensor!)}>
+                <div class="energy-card" @click=${() => this._showMoreInfo(energyToday.entity_id)}>
                   <div class="energy-label">
                     <ha-icon icon="mdi:flash"></ha-icon>
                     ${energyToday.attributes.friendly_name ?? 'Today'}
@@ -886,7 +881,7 @@ export class MirAIeACCard extends LitElement {
                 </div>
               ` : ''}
               ${energyYest ? html`
-                <div class="energy-card" @click=${() => this._showMoreInfo(cfg.energy_yesterday_sensor!)}>
+                <div class="energy-card" @click=${() => this._showMoreInfo(energyYest.entity_id)}>
                   <div class="energy-label">
                     <ha-icon icon="mdi:flash-outline"></ha-icon>
                     ${energyYest.attributes.friendly_name ?? 'Yesterday'}
@@ -903,16 +898,22 @@ export class MirAIeACCard extends LitElement {
 
         <!-- Footer Telemetry Status Row -->
         <div class="footer-telemetry-row">
-          ${irBlaster ? html`
+          ${localUdp ? html`
             <div class="connection-status-pill">
-              <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
-              <span>IR Blaster</span>
+              <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
+              <span>Local UDP</span>
             </div>
           ` : ''}
           ${cloudMqtt ? html`
             <div class="connection-status-pill">
               <span class="status-dot ${cloudMqtt.state === 'on' ? 'online' : ''}"></span>
               <span>Cloud MQTT</span>
+            </div>
+          ` : ''}
+          ${irBlaster ? html`
+            <div class="connection-status-pill">
+              <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
+              <span>IR Blaster</span>
             </div>
           ` : ''}
           ${controlSource && controlSource.state && controlSource.state !== 'unknown' && controlSource.state !== 'unavailable' ? html`
@@ -1080,6 +1081,7 @@ export class MirAIeACCard extends LitElement {
 
   private _sourceIcon(source: string): string {
     const s = (source || '').toLowerCase();
+    if (s.includes('udp') || s.includes('local')) return 'mdi:lan-check';
     if (s.includes('remote')) return 'mdi:remote';
     if (s.includes('switch')) return 'mdi:toggle-switch';
     if (s.includes('blaster') || s.includes('failover') || s === 'ir') return 'mdi:remote-desktop';
@@ -1093,6 +1095,7 @@ export class MirAIeACCard extends LitElement {
     const lower = trimmed.toLowerCase();
     if (lower === 'ir') return 'IR';
     if (lower === 'cloud') return 'Cloud';
+    if (lower === 'local udp' || lower === 'local_udp' || lower === 'udp') return 'Local UDP';
     if (lower === 'ir blaster' || lower === 'ir_blaster') return 'IR Blaster';
     if (lower === 'ir remote' || lower === 'ir_remote') return 'IR Remote';
     if (lower === 'ir failover' || lower === 'ir_failover') return 'IR Failover';
@@ -1103,11 +1106,62 @@ export class MirAIeACCard extends LitElement {
       .map(w => {
         const lw = w.toLowerCase();
         if (lw === 'ir') return 'IR';
+        if (lw === 'udp') return 'UDP';
         if (lw === 'mqtt') return 'MQTT';
         if (lw === 'ha') return 'HA';
         return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
       })
       .join(' ');
+  }
+
+  private _formatBackendName(backend?: string): string {
+    if (!backend || backend === 'none') return '';
+    const b = backend.toLowerCase();
+    if (b.includes('udp')) return 'Local UDP';
+    if (b.includes('cloud') || b.includes('mqtt')) return 'Cloud MQTT';
+    if (b.includes('ir') || b.includes('blaster') || b.includes('remote')) return 'IR Blaster';
+    return backend;
+  }
+
+  private _getBackendInfo(
+    activeBackendSwitch: any,
+    climateAttrs: any
+  ): { label: string; icon: string; isActive: boolean; fallbackText: string } {
+    const primary = climateAttrs?.primary_backend;
+    const secondary = climateAttrs?.secondary_backend;
+    const fallbackName = this._formatBackendName(secondary);
+    const fallbackText = fallbackName ? ` (Fallback: ${fallbackName})` : '';
+    const hasUdp = climateAttrs?.has_udp ?? false;
+
+    // 1. If physical backend select switch exists, use its live state
+    if (activeBackendSwitch && activeBackendSwitch.state && activeBackendSwitch.state !== 'unavailable' && activeBackendSwitch.state !== 'unknown') {
+      const state = activeBackendSwitch.state.toLowerCase();
+      if (state === 'local_udp' || (hasUdp && state === 'on')) {
+        return { label: 'Backend: Local UDP', icon: 'mdi:lan-connect', isActive: true, fallbackText };
+      }
+      if (state === 'cloud' || (hasUdp && state === 'off') || (!hasUdp && state === 'on')) {
+        return { label: 'Backend: Cloud', icon: 'mdi:cloud-sync', isActive: true, fallbackText };
+      }
+      if (state === 'ir' || (!hasUdp && state === 'off')) {
+        return { label: 'Backend: IR', icon: 'mdi:remote', isActive: false, fallbackText };
+      }
+    }
+
+    // 2. Fallback to climate entity extra_state_attributes
+    if (primary) {
+      const p = primary.toLowerCase();
+      if (p.includes('udp')) {
+        return { label: 'Backend: Local UDP', icon: 'mdi:lan-connect', isActive: true, fallbackText };
+      }
+      if (p.includes('cloud') || p.includes('mqtt')) {
+        return { label: 'Backend: Cloud', icon: 'mdi:cloud-sync', isActive: true, fallbackText };
+      }
+      if (p.includes('ir') || p.includes('blaster')) {
+        return { label: 'Backend: IR', icon: 'mdi:remote', isActive: false, fallbackText };
+      }
+    }
+
+    return { label: hasUdp ? 'Backend: Local UDP' : 'Backend: Cloud', icon: hasUdp ? 'mdi:lan-connect' : 'mdi:cloud-sync', isActive: true, fallbackText };
   }
 
   private _renderGoogleHomeFull(
@@ -1146,64 +1200,41 @@ export class MirAIeACCard extends LitElement {
     }
     const cvSorted = cvOptions.sort((x, y) => parseCv(y) - parseCv(x));
 
-    const nanoe = cfg.nanoe_switch ? this.hass.states[cfg.nanoe_switch] : undefined;
-    const display = cfg.display_switch ? this.hass.states[cfg.display_switch] : undefined;
-    const coilBtn = cfg.coil_clean_button ? this.hass.states[cfg.coil_clean_button] : undefined;
-    const coilSensor = cfg.coil_cleaning_sensor ? this.hass.states[cfg.coil_cleaning_sensor] : undefined;
-    const energyToday = cfg.energy_today_sensor ? this.hass.states[cfg.energy_today_sensor] : undefined;
-    const energyYest = cfg.energy_yesterday_sensor ? this.hass.states[cfg.energy_yesterday_sensor] : undefined;
-    const rssi = cfg.rssi_sensor ? this.hass.states[cfg.rssi_sensor] : undefined;
-    const isCleaning = coilSensor?.state === 'on';
-
-    /* 2.0 Hybrid Architecture Companion Entities with Auto-Discovery */
-    const baseId = (stateObj.entity_id || this._getEntityId() || '').replace(/^climate\./, '');
-    const findCompanionEntity = (configuredId: string | undefined, domain: string, patterns: string[]): any => {
-      if (configuredId && this.hass.states[configuredId]) return this.hass.states[configuredId];
-      for (const pat of patterns) {
-        const fullId = `${domain}.${pat}`;
-        if (this.hass.states[fullId]) return this.hass.states[fullId];
-      }
-      const keys = Object.keys(this.hass.states);
-      for (const pat of patterns) {
-        const match = keys.find(k => k.startsWith(`${domain}.${baseId}_`) && k.includes(pat));
-        if (match) return this.hass.states[match];
-      }
-      return undefined;
-    };
-
-    const hybridSwitch = findCompanionEntity(cfg.hybrid_submode_switch, 'switch', [
-      `${baseId}_hybrid_automatic_control`,
-      `${baseId}_hybrid_submode`,
-      `${baseId}_hybrid_control`,
+    /* Helper entities with 3-tier auto-discovery */
+    const nanoe = this._findCompanionEntity(cfg.nanoe_switch, 'switch', ['nanoe', 'nanoe_switch']);
+    const display = this._findCompanionEntity(cfg.display_switch, 'switch', ['display', 'led']);
+    const coilBtn = this._findCompanionEntity(cfg.coil_clean_button, 'button', ['start_coil_clean', 'coil_clean']);
+    const coilSensor = this._findCompanionEntity(cfg.coil_cleaning_sensor, 'binary_sensor', ['coil_cleaning', 'coil_clean']);
+    const filterAlert = this._findCompanionEntity(cfg.filter_alert_sensor, 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']);
+    const energyToday = this._findCompanionEntity(cfg.energy_today_sensor, 'sensor', ['today_s_energy', 'energy_today', 'today_energy']);
+    const energyYest = this._findCompanionEntity(cfg.energy_yesterday_sensor, 'sensor', ['yesterday_s_energy', 'energy_yesterday', 'yesterday_energy']);
+    const rssi = this._findCompanionEntity(cfg.rssi_sensor, 'sensor', ['rssi', 'signal']);
+    const localUdp = this._findCompanionEntity(cfg.local_udp_sensor, 'binary_sensor', ['local_udp_connected', 'local_udp', 'udp_connected']);
+    const cloudMqtt = this._findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', ['cloud_mqtt_connected', 'cloud_mqtt']);
+    const irBlaster = this._findCompanionEntity(cfg.ir_blaster_sensor, 'binary_sensor', [
+      'ir_blaster_available',
+      'ir_transmitter_available',
+      'ir_blaster_transmitter_availability',
+      'ir_blaster'
+    ]);
+    const hybridSwitch = this._findCompanionEntity(cfg.hybrid_submode_switch, 'switch', [
+      'hybrid_automatic_control',
+      'hybrid_submode',
+      'hybrid_control',
       'hybrid'
     ]);
-
-    const activeBackendSwitch = findCompanionEntity(cfg.active_backend_switch, 'switch', [
-      `${baseId}_primary_transport_backend_cloud`,
-      `${baseId}_primary_transport_backend`,
-      `${baseId}_active_backend`,
+    const activeBackendSwitch = this._findCompanionEntity(cfg.active_backend_switch, 'switch', [
+      'primary_transport_backend_cloud',
+      'primary_transport_backend',
+      'active_backend',
       'backend',
       'transport'
     ]);
-
-    const controlSource = findCompanionEntity(cfg.control_source_sensor, 'sensor', [
-      `${baseId}_last_controlled_via`,
-      `${baseId}_control_source`,
-      'last_controlled_via'
+    const controlSource = this._findCompanionEntity(cfg.control_source_sensor, 'sensor', [
+      'last_controlled_via',
+      'control_source'
     ]);
-
-    const irBlaster = findCompanionEntity(cfg.ir_blaster_sensor, 'binary_sensor', [
-      `${baseId}_ir_blaster_available`,
-      `${baseId}_ir_transmitter_available`,
-      `${baseId}_ir_blaster_transmitter_availability`,
-      'ir_blaster'
-    ]);
-
-    const cloudMqtt = findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', [
-      `${baseId}_cloud_mqtt_connected`,
-      `${baseId}_cloud_mqtt`,
-      'cloud_mqtt'
-    ]);
+    const isCleaning = coilSensor?.state === 'on';
 
     let activeStrs: string[] = [];
     if (isOn) {
@@ -1505,8 +1536,8 @@ export class MirAIeACCard extends LitElement {
 
         ${nanoe || display || coilBtn || energyToday || energyYest ? html`
           <div class="gh-extra-chips">
-            ${nanoe ? html`<div class="gh-chip ${nanoe.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}" @click=${() => isCleaning ? this._showToast('Nanoe cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(cfg.nanoe_switch!, nanoe.state))}><ha-icon icon="mdi:virus-outline"></ha-icon>Nanoe</div>` : ''}
-            ${display ? html`<div class="gh-chip ${display.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(cfg.display_switch!, display.state))}><ha-icon icon="mdi:lightbulb-outline"></ha-icon>Display</div>` : ''}
+            ${nanoe ? html`<div class="gh-chip ${nanoe.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}" @click=${() => isCleaning ? this._showToast('Nanoe cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(nanoe.entity_id, nanoe.state))}><ha-icon icon="mdi:virus-outline"></ha-icon>Nanoe</div>` : ''}
+            ${display ? html`<div class="gh-chip ${display.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(display.entity_id, display.state))}><ha-icon icon="mdi:lightbulb-outline"></ha-icon>Display</div>` : ''}
             ${coilBtn || coilSensor ? html`
               <div
                 class="gh-chip ${coilSensor?.state === 'on' ? 'active' : ''} ${isOn || isCleaning ? 'disabled' : ''}"
@@ -1518,7 +1549,7 @@ export class MirAIeACCard extends LitElement {
             } else if (isOn) {
               this._showToast('Coil clean cannot be started while AC is running');
             } else if (coilBtn) {
-              this._pressButton(cfg.coil_clean_button!);
+              this._pressButton(coilBtn.entity_id);
             }
           }}
               >
@@ -1527,10 +1558,10 @@ export class MirAIeACCard extends LitElement {
               </div>
             ` : ''}
             ${energyToday && energyYest ? html`
-              <div class="gh-chip-text"><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh • Yesterday: ${fmt2(energyYest.state)} kWh</div>
+              <div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh • Yesterday: ${fmt2(energyYest.state)} kWh</div>
             ` : html`
-              ${energyToday ? html`<div class="gh-chip-text"><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh</div>` : ''}
-              ${energyYest ? html`<div class="gh-chip-text"><ha-icon icon="mdi:lightning-bolt"></ha-icon>Yesterday: ${fmt2(energyYest.state)} kWh</div>` : ''}
+              ${energyToday ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh</div>` : ''}
+              ${energyYest ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyYest.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Yesterday: ${fmt2(energyYest.state)} kWh</div>` : ''}
             `}
           </div>
         ` : ''}
@@ -1540,16 +1571,16 @@ export class MirAIeACCard extends LitElement {
           <div class="gh-extra-chips" style="margin-top: 10px;">
             ${activeBackendSwitch ? html`
               ${(() => {
-            const isCloud = activeBackendSwitch.state === 'cloud' || activeBackendSwitch.state === 'on';
+            const bInfo = this._getBackendInfo(activeBackendSwitch, a);
             const isAuto = hybridSwitch && (hybridSwitch.state === 'auto' || hybridSwitch.state === 'on');
             return html`
                   <div
-                    class="gh-chip ${isCloud ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
+                    class="gh-chip ${bInfo.isActive ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
                     style="${isAuto ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
-                    title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend')}"
+                    title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend' + bInfo.fallbackText)}"
                     @click=${() => {
                 if (isAuto) {
-                  this._showToast('Backend transport is managed automatically in Auto Failover mode');
+                  this._showToast('Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText);
                 } else if (isCleaning) {
                   this._showToast('Backend cannot be switched while coil cleaning is active');
                 } else {
@@ -1557,8 +1588,8 @@ export class MirAIeACCard extends LitElement {
                 }
               }}
                   >
-                    <ha-icon icon="${isCloud ? 'mdi:cloud-sync' : 'mdi:remote'}"></ha-icon>
-                    Backend: ${isCloud ? 'Cloud' : 'IR'}
+                    <ha-icon icon="${bInfo.icon}"></ha-icon>
+                    ${bInfo.label}
                   </div>
                 `;
           })()}
@@ -1587,6 +1618,12 @@ export class MirAIeACCard extends LitElement {
         
         <!-- Footer Telemetry Status Row -->
         <div class="footer-telemetry-row">
+          ${localUdp ? html`
+            <div class="connection-status-pill">
+              <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
+              <span>Local UDP</span>
+            </div>
+          ` : ''}
           ${irBlaster ? html`
             <div class="connection-status-pill">
               <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
@@ -1628,7 +1665,7 @@ export class MirAIeACCard extends LitElement {
   ) {
     const isOnline = stateObj.state !== 'unavailable' && stateObj.state !== 'unknown';
     const displayValue = isOn ? (hvacMode === 'fan_only' ? 'FA' : (targetTemp != null ? `${targetTemp}°` : '--')) : (isOnline ? 'Off' : 'Offline');
-    const coilSensor = this._config.coil_cleaning_sensor ? this.hass.states[this._config.coil_cleaning_sensor] : undefined;
+    const coilSensor = this._findCompanionEntity(this._config.coil_cleaning_sensor, 'binary_sensor', ['coil_cleaning', 'coil_clean']);
     const isCleaning = coilSensor?.state === 'on';
 
     const activeStrs: string[] = [];
