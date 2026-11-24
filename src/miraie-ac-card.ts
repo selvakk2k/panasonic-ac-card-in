@@ -195,9 +195,13 @@ export class MirAIeACCard extends LitElement {
       const cfg = this._config;
       if (!cfg.entity) return true;
       const base = cfg.entity.replace(/^climate\./, '');
+      const climateId = this._getEntityId();
+      const entityReg = (this.hass as any)?.entities;
+      const climateDeviceId = entityReg?.[climateId]?.device_id;
       const keys = Object.keys(this.hass.states);
       for (const k of keys) {
-        if (k === cfg.entity || k.includes(base)) {
+        const belongsToDevice = Boolean(climateDeviceId && entityReg?.[k]?.device_id === climateDeviceId);
+        if (k === cfg.entity || belongsToDevice || k.includes(base)) {
           if (old.states[k] !== this.hass.states[k]) return true;
         }
       }
@@ -239,6 +243,38 @@ export class MirAIeACCard extends LitElement {
     const keys = Object.keys(this.hass.states);
     for (const pat of patterns) {
       const match = keys.find(k => k.startsWith(`${domain}.${baseId}_`) && k.includes(pat));
+      if (match) return this.hass.states[match];
+    }
+    // Fallback: match if domain matches, key ends with pat, and entity belongs to the same device (or clean prefix match)
+    const climateId = this._getEntityId();
+    const entityReg = (this.hass as any)?.entities;
+    const climateDeviceId = entityReg?.[climateId]?.device_id;
+
+    for (const pat of patterns) {
+      const match = keys.find(k => {
+        if (!k.startsWith(`${domain}.`) || !k.includes(pat)) return false;
+        // 1. Strict device ownership check via entity registry if available
+        if (climateDeviceId && entityReg?.[k]?.device_id) {
+          return entityReg[k].device_id === climateDeviceId;
+        }
+        // 2. Exact prefix match with check against other climate entities to prevent false borrowing
+        if (!baseId) return false;
+        const objectId = k.slice(domain.length + 1);
+        const isPrefix = objectId.startsWith(`${baseId}_`) || objectId.endsWith(`_${baseId}`) || objectId.includes(`_${baseId}_`);
+        if (!isPrefix) return false;
+
+        // Ensure no other climate entity has a closer/more specific prefix match
+        const otherClimates = Object.keys(this.hass.states).filter(
+          id => id.startsWith('climate.') && id !== climateId
+        );
+        for (const oc of otherClimates) {
+          const ocBase = oc.replace(/^climate\./, '');
+          if (ocBase && ocBase.length > baseId.length && (objectId.startsWith(`${ocBase}_`) || objectId.endsWith(`_${ocBase}`) || objectId.includes(`_${ocBase}_`))) {
+            return false;
+          }
+        }
+        return true;
+      });
       if (match) return this.hass.states[match];
     }
     return undefined;
@@ -910,24 +946,7 @@ export class MirAIeACCard extends LitElement {
 
         <!-- Footer Telemetry Status Row -->
         <div class="footer-telemetry-row">
-          ${localUdp ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
-              <span>Local UDP</span>
-            </div>
-          ` : ''}
-          ${cloudMqtt ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${cloudMqtt.state === 'on' ? 'online' : ''}"></span>
-              <span>Cloud MQTT</span>
-            </div>
-          ` : ''}
-          ${irBlaster ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
-              <span>IR Blaster</span>
-            </div>
-          ` : ''}
+          ${this._renderTransportPills(a.primary_backend, a.secondary_backend, localUdp, cloudMqtt, irBlaster)}
           ${controlSource && controlSource.state && controlSource.state !== 'unknown' && controlSource.state !== 'unavailable' ? html`
             <div class="connection-status-pill">
               <ha-icon icon="${this._sourceIcon(controlSource.state)}" style="--mdc-icon-size: 14px;"></ha-icon>
@@ -1152,6 +1171,84 @@ export class MirAIeACCard extends LitElement {
     if (b.includes('cloud') || b.includes('mqtt')) return 'Cloud MQTT';
     if (b.includes('ir') || b.includes('blaster') || b.includes('remote')) return 'IR Blaster';
     return backend;
+  }
+
+  private _renderTransportPills(
+    primaryBackend: string | undefined,
+    secondaryBackend: string | undefined,
+    localUdp: any,
+    cloudMqtt: any,
+    irBlaster: any
+  ): TemplateResult {
+    // Determine configured transport backends in priority order
+    const configured: string[] = [];
+    if (primaryBackend && primaryBackend !== 'none') configured.push(primaryBackend.toLowerCase());
+    if (secondaryBackend && secondaryBackend !== 'none' && !configured.includes(secondaryBackend.toLowerCase())) {
+      configured.push(secondaryBackend.toLowerCase());
+    }
+
+    // Map backend names to corresponding entities and labels
+    const getPill = (backend: string) => {
+      if (backend.includes('udp') || backend.includes('local')) {
+        return localUdp ? html`
+          <div class="connection-status-pill">
+            <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
+            <span>Local UDP</span>
+          </div>
+        ` : '';
+      }
+      if (backend.includes('ir') || backend.includes('blaster') || backend.includes('remote')) {
+        return irBlaster ? html`
+          <div class="connection-status-pill">
+            <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
+            <span>IR Blaster</span>
+          </div>
+        ` : '';
+      }
+      if (backend.includes('cloud') || backend.includes('mqtt')) {
+        return cloudMqtt ? html`
+          <div class="connection-status-pill">
+            <span class="status-dot ${cloudMqtt.state === 'on' ? 'online' : ''}"></span>
+            <span>Cloud MQTT</span>
+          </div>
+        ` : '';
+      }
+      return '';
+    };
+
+    // If explicit primary/secondary backends are configured, show the first two selected
+    if (configured.length > 0) {
+      const topTwo = configured.slice(0, 2);
+      return html`${topTwo.map(b => getPill(b))}`;
+    }
+
+    // Default fallback if no primary/secondary attribute: show discovered entities (max 2)
+    const defaults: TemplateResult[] = [];
+    if (localUdp) {
+      defaults.push(html`
+        <div class="connection-status-pill">
+          <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
+          <span>Local UDP</span>
+        </div>
+      `);
+    }
+    if (irBlaster && defaults.length < 2) {
+      defaults.push(html`
+        <div class="connection-status-pill">
+          <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
+          <span>IR Blaster</span>
+        </div>
+      `);
+    }
+    if (cloudMqtt && defaults.length < 2) {
+      defaults.push(html`
+        <div class="connection-status-pill">
+          <span class="status-dot ${cloudMqtt.state === 'on' ? 'online' : ''}"></span>
+          <span>Cloud MQTT</span>
+        </div>
+      `);
+    }
+    return html`${defaults}`;
   }
 
   private _getBackendInfo(
@@ -1649,24 +1746,7 @@ export class MirAIeACCard extends LitElement {
         
         <!-- Footer Telemetry Status Row -->
         <div class="footer-telemetry-row">
-          ${localUdp ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${localUdp.state === 'on' ? 'online' : ''}"></span>
-              <span>Local UDP</span>
-            </div>
-          ` : ''}
-          ${irBlaster ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${irBlaster.state === 'on' ? 'online' : ''}"></span>
-              <span>IR Blaster</span>
-            </div>
-          ` : ''}
-          ${cloudMqtt ? html`
-            <div class="connection-status-pill">
-              <span class="status-dot ${cloudMqtt.state === 'on' ? 'online' : ''}"></span>
-              <span>Cloud MQTT</span>
-            </div>
-          ` : ''}
+          ${this._renderTransportPills(stateObj.attributes?.primary_backend, stateObj.attributes?.secondary_backend, localUdp, cloudMqtt, irBlaster)}
           ${controlSource && controlSource.state && controlSource.state !== 'unknown' && controlSource.state !== 'unavailable' ? html`
             <div class="connection-status-pill">
               <ha-icon icon="${this._sourceIcon(controlSource.state)}" style="--mdc-icon-size: 14px;"></ha-icon>

@@ -20,8 +20,9 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 * **Multiple Visual Layouts**: Seamless borderless Google Home design and structured Classic card view with ambient active glow effects.
 * **Convertible Capacity Controls**: Notched slider (Classic view) or custom dropdown picker (Google Home view) for 8-in-1 convertible steps (Normal down to 40% / up to 110%).
 * **Multi-Parameter Selectors**: Dedicated pickers for Fan Speed (Auto, Low, Med, High, Powerful, Quiet) and Vertical/Horizontal Vane angles.
-* **Appliance Feature Toggles**: Direct control switches for Nanoe™ Air Purifier, Indoor Unit Display LED, and Coil Self-Cleaning cycle.
-* **Hybrid Transport Status**: Telemetry row displaying active backend (Cloud MQTT vs. Local IR Blaster), Wi-Fi RSSI signal strength, and last control source.
+* **Appliance Feature Controls**: Direct controls for Nanoe™ Air Purifier, Indoor Unit Display LED (supporting both binary `switch.*` and multi-state `select.*_display_mode` with night mode cycling), and Coil Self-Cleaning cycle.
+* **Dynamic Dual-Transport Status**: Footer indicators dynamically display live status pills for your top two configured backends (Local UDP, Local IR Blaster, Cloud MQTT), Wi-Fi RSSI signal strength, and last control source.
+* **Strict Companion Discovery**: Auto-detects matching companion entities with strict device registry validation to prevent entity collisions in multi-AC installations.
 * **Energy Analytics Cards**: Quick telemetry display for Today's and Yesterday's power consumption with one-tap drill-down into Home Assistant historical graphs.
 * **Haptic Touch Feedback**: Tactile vibration responses when toggling modes and adjusting setpoints on mobile devices.
 * **Visual GUI Editor**: Full configuration support directly inside Home Assistant's dashboard editor without requiring manual YAML.
@@ -94,8 +95,9 @@ energy_yesterday_sensor: sensor.living_room_ac_energy_yesterday
 | `accent_color` | string | Optional | Override the active highlight color (hex code or CSS token). |
 | `main_color` | string | Optional | Override the background card surface color. |
 | `nanoe_switch` | string | Optional | The `switch.*` entity for Nanoe™ air purifier. |
-| `display_switch` | string | Optional | The `switch.*` entity for the indoor unit LED display. |
+| `display_switch` | string | Optional | The `switch.*` or `select.*` entity for the indoor unit LED display. |
 | `coil_clean_button`| string | Optional | The `button.*` entity to trigger coil self-cleaning. |
+| `local_udp_sensor`| string | Optional | The `binary_sensor.*` entity for Local UDP connectivity. |
 | `rssi_sensor` | string | Optional | The `sensor.*` entity for Wi-Fi RSSI telemetry. |
 
 ---
