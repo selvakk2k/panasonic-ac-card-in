@@ -2,12 +2,15 @@ export interface MirAIeCardConfig {
   type: string;
   entity: string;
   name?: string;
-  // Theming
+  // Theming & Visibility Toggles
   theme?: string;
   layout?: string;
   full_layout?: string;
   accent_color?: string;
   main_color?: string;
+  show_controls?: boolean;
+  show_energy?: boolean;
+  show_diagnostics?: boolean;
   // Optional sensor overrides
   room_temp_sensor?: string;
   humidity_sensor?: string;
@@ -29,4 +32,10 @@ export interface MirAIeCardConfig {
   rssi_sensor?: string;
   energy_today_sensor?: string;
   energy_yesterday_sensor?: string;
+  estimated_power_sensor?: string;
+  compressor_frequency_sensor?: string;
+  evaporator_coil_temp_sensor?: string;
+  outdoor_condenser_temp_sensor?: string;
+  voltage_sensor?: string;
+  current_sensor?: string;
 }

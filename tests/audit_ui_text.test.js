@@ -102,10 +102,11 @@ assert(invalidTitles === 0, `All static tooltip title attributes (${titleCount} 
 // 4. Audit Visual Editor Section Titles
 // ─────────────────────────────────────────────
 const editorSectionTitles = [
-  'Display Sensors',
-  '2.0 Hybrid Transport Architecture (Auto-Discovered if blank)',
-  'Convertible & Controls',
-  'Diagnostics & Energy'
+  'Appearance & Theme',
+  'Sensors',
+  'Connectivity & Failover',
+  'AC Features & Controls',
+  'Energy & Diagnostics'
 ];
 
 for (const section of editorSectionTitles) {

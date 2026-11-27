@@ -6,9 +6,9 @@ import { styles } from './styles';
 
 /* ── Card picker & By-Entity suggestion registration ── */
 const customCardEntry = {
-  type: 'miraie-ac-card',
+  type: 'miraie-ac-card-in',
   name: 'Panasonic AC India Card',
-  description: 'A premium thermostat card for Indian-market Panasonic MirAIe AC units',
+  description: 'A premium thermostat card for Indian-market Panasonic MirAIe & Matter AC units',
   preview: true,
   domain: 'climate',
   domains: ['climate'],
@@ -49,6 +49,85 @@ function fmt2(v: number | string): string {
   return isNaN(n) ? String(v) : n.toFixed(2);
 }
 
+/** Decode Panasonic Matter/3.02+ packed temperature (e.g. 61.3 -> 30.24°C). */
+function parsePackedTemp(val: any): number | any {
+  const num = Number(val);
+  if (val == null || isNaN(num) || num <= 50) return val;
+  const parts = num.toFixed(2).split('.');
+  if (parts.length === 2) {
+    const prefix = parseInt(parts[0], 10);
+    const suffix = parseInt(parts[1], 10);
+    if (suffix >= 10 && suffix <= 50) {
+      return Number((suffix + prefix / 256.0).toFixed(2));
+    }
+  }
+  return val;
+}
+
+function discoverCompanionEntities(hass: HomeAssistant | undefined, entity: string): Record<string, string> {
+  const found: Record<string, string> = {};
+  if (!entity || !hass?.states) return found;
+  const base = entity.replace(/^climate\./, '');
+  const reg = (hass as any)?.entities;
+  const devId = reg?.[entity]?.device_id;
+  const keys = Object.keys(hass.states);
+  const escBase = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const climateBases = keys
+    .filter(k => k.startsWith('climate.') && k !== entity)
+    .map(k => k.slice('climate.'.length))
+    .filter(b => b.length > base.length && b.startsWith(`${base}_`));
+  const baseRe = new RegExp(`^${escBase}(?:_|$)`);
+  const findId = (domain: string, pats: string[]): string | undefined => {
+    for (const p of pats) {
+      const scopedId = `${domain}.${base}_${p}`;
+      if (hass.states[scopedId] && (!devId || !reg?.[scopedId]?.device_id || reg[scopedId].device_id === devId)) {
+        return scopedId;
+      }
+      const escP = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const patRe = new RegExp(`(?:^|_)${escP}(?:_|$)`);
+      const m = keys.find(k => {
+        if (!k.startsWith(`${domain}.`)) return false;
+        const objId = k.slice(domain.length + 1);
+        const belongs = devId
+          ? reg?.[k]?.device_id === devId
+          : (baseRe.test(objId) && !climateBases.some(cb => objId.startsWith(`${cb}_`)));
+        if (p === 'current' && !k.endsWith('_current') && hass.states[k]?.attributes?.device_class !== 'current') return false;
+        return belongs && patRe.test(objId);
+      });
+      if (m) return m;
+      const genericId = `${domain}.${p}`;
+      if (hass.states[genericId] && (!devId || !reg?.[genericId]?.device_id || reg[genericId].device_id === devId)) {
+        return genericId;
+      }
+    }
+    return undefined;
+  };
+  const map: [string, string, string[]][] = [
+    ['local_udp_sensor', 'binary_sensor', ['local_udp_connected', 'local_udp', 'udp_connected']],
+    ['cloud_mqtt_sensor', 'binary_sensor', ['cloud_mqtt_connected', 'cloud_mqtt']],
+    ['ir_blaster_sensor', 'binary_sensor', ['ir_blaster_available', 'ir_transmitter_available', 'ir_blaster']],
+    ['control_source_sensor', 'sensor', ['last_controlled_via', 'control_source']],
+    ['nanoe_switch', 'switch', ['nanoe', 'nanoe_switch']],
+    ['coil_clean_button', 'button', ['start_coil_clean', 'coil_clean']],
+    ['coil_cleaning_sensor', 'binary_sensor', ['coil_cleaning', 'coil_clean']],
+    ['filter_alert_sensor', 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']],
+    ['estimated_power_sensor', 'sensor', ['estimated_power']],
+    ['energy_today_sensor', 'sensor', ['today_s_energy', 'energy_today', 'today_energy']],
+    ['energy_yesterday_sensor', 'sensor', ['yesterday_s_energy', 'energy_yesterday', 'yesterday_energy']],
+    ['rssi_sensor', 'sensor', ['rssi', 'signal']],
+    ['compressor_frequency_sensor', 'sensor', ['compressor_frequency']],
+    ['evaporator_coil_temp_sensor', 'sensor', ['evaporator_coil_temperature', 'evaporator_coil_temp']],
+    ['outdoor_condenser_temp_sensor', 'sensor', ['outdoor_condenser_temperature', 'outdoor_condenser_temp']],
+    ['voltage_sensor', 'sensor', ['voltage']],
+    ['current_sensor', 'sensor', ['current']],
+  ];
+  for (const [key, dom, pats] of map) {
+    const id = findId(dom, pats);
+    if (id) found[key] = id;
+  }
+  return found;
+}
+
 @customElement('miraie-ac-card-in')
 export class MirAIeACCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -78,60 +157,113 @@ export class MirAIeACCard extends LitElement {
     }
   };
 
-  /* ── Native visual editor (HA renders this; no custom element needed) ── */
-  static getConfigForm() {
-    return {
-      schema: [
-        { name: 'entity', required: true, selector: { entity: { domain: 'climate', integration: 'miraie_in' } } },
-        { name: 'name', selector: { text: {} } },
-        { name: 'theme', selector: { select: { options: [{ label: 'Default HA Theme', value: 'default' }, { label: 'Material You (Optimized for Material 3 Theme)', value: 'material_you' }] } } },
-        { name: 'layout', selector: { select: { options: [{ label: 'Default (Full)', value: 'default' }, { label: 'Compact (Expandable)', value: 'compact' }] } } },
-        { name: 'full_layout', selector: { select: { options: [{ label: 'Classic', value: 'default' }, { label: 'Google Home', value: 'google_home' }] } } },
-        {
-          name: '', type: 'expandable', title: 'Theming & Colors', icon: 'mdi:palette',
-          schema: [
-            { name: 'accent_color', label: 'Accent Color', selector: { ui_color: {} } },
-            { name: 'main_color', label: 'Background Color', selector: { ui_color: {} } },
-          ],
-        },
-        {
-          name: '', type: 'expandable', title: 'Display Sensors', icon: 'mdi:thermometer',
-          schema: [
-            { name: 'room_temp_sensor', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
-            { name: 'humidity_sensor', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
-          ],
-        },
-        {
-          name: '', type: 'expandable', title: '2.0 Hybrid Transport Architecture (Auto-Discovered if blank)', icon: 'mdi:swap-horizontal-circle-outline',
-          schema: [
-            { name: 'local_udp_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
-            { name: 'cloud_mqtt_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
-            { name: 'hybrid_submode_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'active_backend_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'ir_blaster_sensor', selector: { entity: { domain: ['binary_sensor', 'infrared', 'remote'] } } },
-            { name: 'control_source_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
-          ],
-        },
-        {
-          name: '', type: 'expandable', title: 'Convertible & Controls', icon: 'mdi:toggle-switch-outline',
-          schema: [
+  static getConfigElement() {
+    return document.createElement('miraie-ac-card-in-editor');
+  }
 
-            { name: 'nanoe_switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
-            { name: 'display_switch', selector: { entity: { domain: ['switch', 'select'], integration: 'miraie_in' } } },
-            { name: 'coil_clean_button', selector: { entity: { domain: 'button', integration: 'miraie_in' } } },
-            { name: 'coil_cleaning_sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+  /* ── Native visual editor schema ── */
+  static getConfigForm() {
+    const LABELS: Record<string, string> = {
+      entity: 'Climate Entity',
+      name: 'Card Name',
+      theme: 'Theme',
+      layout: 'Layout',
+      full_layout: 'UI Style',
+      accent_color: 'Accent Color',
+      main_color: 'Background Color',
+      show_controls: 'Show Feature Controls',
+      show_energy: 'Show Energy Section',
+      show_diagnostics: 'Show Footer Telemetry',
+      room_temp_sensor: 'Room Temperature Sensor',
+      humidity_sensor: 'Humidity Sensor',
+      local_udp_sensor: 'Local UDP Sensor',
+      cloud_mqtt_sensor: 'Cloud MQTT Sensor',
+      hybrid_submode_switch: 'Hybrid Submode Switch',
+      active_backend_switch: 'Active Backend Switch',
+      ir_blaster_sensor: 'IR Blaster Sensor',
+      control_source_sensor: 'Control Source Sensor',
+      nanoe_switch: 'Nanoe Switch',
+      display_switch: 'Display Switch',
+      coil_clean_button: 'Coil Clean Button',
+      coil_cleaning_sensor: 'Coil Cleaning Sensor',
+      filter_alert_sensor: 'Filter Alert Sensor',
+      estimated_power_sensor: 'Power Sensor',
+      energy_today_sensor: 'Today Energy Sensor',
+      energy_yesterday_sensor: 'Yesterday Energy Sensor',
+      rssi_sensor: 'RSSI Sensor',
+      compressor_frequency_sensor: 'Compressor Frequency Sensor',
+      evaporator_coil_temp_sensor: 'Evaporator Coil Temperature Sensor',
+      outdoor_condenser_temp_sensor: 'Outdoor Condenser Temperature Sensor',
+      voltage_sensor: 'Voltage Sensor',
+      current_sensor: 'Current Sensor',
+    };
+    const HELPERS: Record<string, string> = {
+      accent_color: 'Setting a custom accent color overrides your Home Assistant system theme.',
+      main_color: 'Setting a custom background color overrides your Home Assistant system theme.',
+    };
+    return {
+      computeLabel: (schema: any) => LABELS[schema?.name] || schema?.label || schema?.name,
+      computeHelper: (schema: any) => HELPERS[schema?.name],
+      schema: [
+        { name: 'entity', required: true, selector: { entity: { domain: 'climate' } } },
+        { name: 'name', selector: { text: {} } },
+        {
+          name: '', type: 'expandable', title: 'Appearance & Theme', icon: 'mdi:palette',
+          schema: [
+            { name: 'theme', label: 'Theme', selector: { select: { options: [{ label: 'Default', value: 'default' }, { label: 'Material You (Material 3)', value: 'material_you' }] } } },
+            { name: 'layout', label: 'Layout', selector: { select: { options: [{ label: 'Full', value: 'default' }, { label: 'Compact (Expandable)', value: 'compact' }] } } },
+            { name: 'full_layout', label: 'UI Style', selector: { select: { options: [{ label: 'Classic', value: 'default' }, { label: 'Google Home (Material 3)', value: 'google_home' }] } } },
+            { name: 'accent_color', label: 'Accent Color (Overrides system theme)', selector: { ui_color: {} } },
+            { name: 'main_color', label: 'Background Color (Overrides system theme)', selector: { ui_color: {} } },
+            { name: 'show_controls', label: 'Show Feature Controls', default: true, selector: { boolean: {} } },
+            { name: 'show_energy', label: 'Show Energy Section', default: true, selector: { boolean: {} } },
+            { name: 'show_diagnostics', label: 'Show Footer Telemetry', default: true, selector: { boolean: {} } },
+          ],
+        },
+        {
+          name: '', type: 'expandable', title: 'Sensors', icon: 'mdi:thermometer',
+          schema: [
+            { name: 'room_temp_sensor', label: 'Room Temperature Sensor', selector: { entity: { domain: 'sensor', device_class: 'temperature' } } },
+            { name: 'humidity_sensor', label: 'Humidity Sensor', selector: { entity: { domain: 'sensor', device_class: 'humidity' } } },
+          ],
+        },
+        {
+          name: '', type: 'expandable', title: 'Connectivity & Failover', icon: 'mdi:swap-horizontal-circle-outline',
+          schema: [
+            { name: 'local_udp_sensor', label: 'Local UDP Sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+            { name: 'cloud_mqtt_sensor', label: 'Cloud MQTT Sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
+            { name: 'hybrid_submode_switch', label: 'Hybrid Submode Switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'active_backend_switch', label: 'Active Backend Switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'ir_blaster_sensor', label: 'IR Blaster Sensor', selector: { entity: { domain: ['binary_sensor', 'infrared', 'remote'] } } },
+            { name: 'control_source_sensor', label: 'Control Source Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+          ],
+        },
+        {
+          name: '', type: 'expandable', title: 'AC Features & Controls', icon: 'mdi:toggle-switch-outline',
+          schema: [
+            { name: 'nanoe_switch', label: 'Nanoe Switch', selector: { entity: { domain: 'switch', integration: 'miraie_in' } } },
+            { name: 'display_switch', label: 'Display Switch', selector: { entity: { domain: ['switch', 'select'], integration: 'miraie_in' } } },
+            { name: 'coil_clean_button', label: 'Coil Clean Button', selector: { entity: { domain: 'button', integration: 'miraie_in' } } },
+            { name: 'coil_cleaning_sensor', label: 'Coil Cleaning Sensor', selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } } },
             {
               name: 'filter_alert_sensor',
+              label: 'Filter Alert Sensor',
               selector: { entity: { domain: 'binary_sensor', integration: 'miraie_in' } },
             },
           ],
         },
         {
-          name: '', type: 'expandable', title: 'Diagnostics & Energy', icon: 'mdi:chart-line',
+          name: '', type: 'expandable', title: 'Energy & Diagnostics', icon: 'mdi:chart-line',
           schema: [
-            { name: 'rssi_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
-            { name: 'energy_today_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
-            { name: 'energy_yesterday_sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'estimated_power_sensor', label: 'Power Sensor', selector: { entity: { domain: 'sensor', device_class: 'power' } } },
+            { name: 'energy_today_sensor', label: 'Today Energy Sensor', selector: { entity: { domain: 'sensor', device_class: 'energy' } } },
+            { name: 'energy_yesterday_sensor', label: 'Yesterday Energy Sensor', selector: { entity: { domain: 'sensor', device_class: 'energy' } } },
+            { name: 'rssi_sensor', label: 'RSSI Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'compressor_frequency_sensor', label: 'Compressor Frequency Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'evaporator_coil_temp_sensor', label: 'Evaporator Coil Temperature Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'outdoor_condenser_temp_sensor', label: 'Outdoor Condenser Temperature Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'voltage_sensor', label: 'Voltage Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
+            { name: 'current_sensor', label: 'Current Sensor', selector: { entity: { domain: 'sensor', integration: 'miraie_in' } } },
           ],
         },
       ],
@@ -149,7 +281,17 @@ export class MirAIeACCard extends LitElement {
     if (!entity && hass && hass.states) {
       entity = Object.keys(hass.states).find(e => e.startsWith('climate.')) || '';
     }
-    return { type: 'custom:miraie-ac-card', entity };
+    const stub: Record<string, any> = {
+      type: 'custom:miraie-ac-card-in',
+      entity,
+      show_controls: true,
+      show_energy: true,
+      show_diagnostics: true,
+    };
+    if (entity && hass?.states) {
+      Object.assign(stub, discoverCompanionEntities(hass, entity));
+    }
+    return stub;
   }
 
   /* ── Config ── */
@@ -198,10 +340,24 @@ export class MirAIeACCard extends LitElement {
       const climateId = this._getEntityId();
       const entityReg = (this.hass as any)?.entities;
       const climateDeviceId = entityReg?.[climateId]?.device_id;
+      const explicitIds = new Set<string>(
+        COMPANION_KEYS.map((ck) => (cfg as any)[ck]).filter((v): v is string => typeof v === 'string' && v.length > 0),
+      );
+      const discovered = discoverCompanionEntities(this.hass, climateId);
+      for (const dv of Object.values(discovered)) {
+        if (dv) explicitIds.add(dv);
+      }
+      const prevDiscovered = discoverCompanionEntities(old, climateId);
+      for (const dv of Object.values(prevDiscovered)) {
+        if (dv) explicitIds.add(dv);
+      }
+      for (const eid of explicitIds) {
+        if (old.states[eid] !== this.hass.states[eid]) return true;
+      }
       const keys = Object.keys(this.hass.states);
       for (const k of keys) {
         const belongsToDevice = Boolean(climateDeviceId && entityReg?.[k]?.device_id === climateDeviceId);
-        if (k === cfg.entity || belongsToDevice || k.includes(base)) {
+        if (k === cfg.entity || explicitIds.has(k) || belongsToDevice || k.includes(base)) {
           if (old.states[k] !== this.hass.states[k]) return true;
         }
       }
@@ -229,6 +385,7 @@ export class MirAIeACCard extends LitElement {
   }
 
   private _findCompanionEntity(configuredId: string | undefined, domain: string, patterns: string[]): any {
+    if (configuredId === '') return undefined;
     if (configuredId && this.hass?.states?.[configuredId]) return this.hass.states[configuredId];
     if (!this.hass?.states) return undefined;
     const baseId = (this._getEntityId() || '').replace(/^climate\./, '');
@@ -241,18 +398,29 @@ export class MirAIeACCard extends LitElement {
       }
     }
     const keys = Object.keys(this.hass.states);
-    for (const pat of patterns) {
-      const match = keys.find(k => k.startsWith(`${domain}.${baseId}_`) && k.includes(pat));
-      if (match) return this.hass.states[match];
-    }
-    // Fallback: match if domain matches, key ends with pat, and entity belongs to the same device (or clean prefix match)
     const climateId = this._getEntityId();
     const entityReg = (this.hass as any)?.entities;
     const climateDeviceId = entityReg?.[climateId]?.device_id;
+    const moreSpecificBases = keys
+      .filter(id => id.startsWith('climate.') && id !== climateId)
+      .map(id => id.replace(/^climate\./, ''))
+      .filter(oc => baseId && oc.length > baseId.length && oc.startsWith(`${baseId}_`));
+    for (const pat of patterns) {
+      const match = keys.find(k => {
+        if (!k.startsWith(`${domain}.${baseId}_`) || !k.includes(pat)) return false;
+        if (pat === 'current' && !k.endsWith('_current') && this.hass.states[k]?.attributes?.device_class !== 'current') return false;
+        if (climateDeviceId && entityReg?.[k]?.device_id && entityReg[k].device_id !== climateDeviceId) return false;
+        const objId = k.slice(domain.length + 1);
+        return !moreSpecificBases.some(oc => objId.startsWith(`${oc}_`));
+      });
+      if (match) return this.hass.states[match];
+    }
+    // Fallback: match if domain matches, key ends with pat, and entity belongs to the same device (or clean prefix match)
 
     for (const pat of patterns) {
       const match = keys.find(k => {
         if (!k.startsWith(`${domain}.`) || !k.includes(pat)) return false;
+        if (pat === 'current' && !k.endsWith('_current') && this.hass.states[k]?.attributes?.device_class !== 'current') return false;
         // 1. Strict device ownership check via entity registry if available
         if (climateDeviceId && entityReg?.[k]?.device_id) {
           return entityReg[k].device_id === climateDeviceId;
@@ -321,9 +489,18 @@ export class MirAIeACCard extends LitElement {
     const swingV = a.swing_mode;
     const swingH = a.swing_horizontal_mode;
 
-    /* Room temperature: external sensor overrides AC built-in */
+    /* Room temperature: external sensor overrides AC built-in (supports packed Matter 61.3 -> 30.24°C) */
     const roomSensor = cfg.room_temp_sensor ? this.hass.states[cfg.room_temp_sensor] : undefined;
-    let currentTemp: any = roomSensor ? roomSensor.state : a.current_temperature;
+    const isFahrenheit = this.hass?.config?.unit_system?.temperature === '°F';
+    const isPackedSource = Boolean(
+      a.matter_only === true ||
+      a.primary_backend === 'matter' ||
+      a.secondary_backend === 'matter' ||
+      (this.hass as any)?.entities?.[entityId]?.platform === 'matter',
+    );
+    let currentTemp: any = roomSensor
+      ? roomSensor.state
+      : (!isFahrenheit && isPackedSource ? parsePackedTemp(a.current_temperature) : a.current_temperature);
     if (currentTemp != null && !isNaN(Number(currentTemp))) {
       currentTemp = Number(currentTemp).toFixed(1);
     }
@@ -344,6 +521,12 @@ export class MirAIeACCard extends LitElement {
     const rssi = this._findCompanionEntity(cfg.rssi_sensor, 'sensor', ['rssi', 'signal']);
     const energyToday = this._findCompanionEntity(cfg.energy_today_sensor, 'sensor', ['today_s_energy', 'energy_today', 'today_energy']);
     const energyYest = this._findCompanionEntity(cfg.energy_yesterday_sensor, 'sensor', ['yesterday_s_energy', 'energy_yesterday', 'yesterday_energy']);
+    const estPower = this._findCompanionEntity(cfg.estimated_power_sensor, 'sensor', ['estimated_power']);
+    const compFreq = this._findCompanionEntity(cfg.compressor_frequency_sensor, 'sensor', ['compressor_frequency']);
+    const evapTemp = this._findCompanionEntity(cfg.evaporator_coil_temp_sensor, 'sensor', ['evaporator_coil_temperature', 'evaporator_coil_temp']);
+    const condTemp = this._findCompanionEntity(cfg.outdoor_condenser_temp_sensor, 'sensor', ['outdoor_condenser_temperature', 'outdoor_condenser_temp']);
+    const voltage = this._findCompanionEntity(cfg.voltage_sensor, 'sensor', ['voltage']);
+    const current = this._findCompanionEntity(cfg.current_sensor, 'sensor', ['current']);
     const localUdp = this._findCompanionEntity(cfg.local_udp_sensor, 'binary_sensor', ['local_udp_connected', 'local_udp', 'udp_connected']);
     const cloudMqtt = this._findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', ['cloud_mqtt_connected', 'cloud_mqtt']);
     const irBlaster = this._findCompanionEntity(cfg.ir_blaster_sensor, 'binary_sensor', [
@@ -370,6 +553,11 @@ export class MirAIeACCard extends LitElement {
       'control_source'
     ]);
     const isCleaning = coilSensor?.state === 'on';
+    const isMatterOnly = a.matter_only === true || (a.primary_backend === 'matter' && (!a.secondary_backend || a.secondary_backend === 'none'));
+    const isMatterFailoverOnly = !isMatterOnly && a.matter_connected === true && a.non_matter_available === false;
+    const showControls = cfg.show_controls !== false && !isMatterOnly;
+    const showEnergy = cfg.show_energy !== false;
+    const showDiagnostics = cfg.show_diagnostics !== false;
 
     /* Convertible step-slider data */
     let cvOptions: string[] = [];
@@ -567,10 +755,10 @@ export class MirAIeACCard extends LitElement {
             return html`
                       <button
                         class="segmented-item ${!isAuto ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
-                        title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend' + bInfo.fallbackText)}"
+                        title="${isAuto ? 'Primary connection method is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary connection method' + bInfo.fallbackText)}"
                         @click=${() => {
                 if (isAuto) {
-                  this._showToast('Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText);
+                  this._showToast('Primary connection method is managed automatically in Auto Failover mode' + bInfo.fallbackText);
                 } else if (isCleaning) {
                   this._showToast('Backend cannot be switched while coil cleaning is active');
                 } else {
@@ -633,6 +821,7 @@ export class MirAIeACCard extends LitElement {
           </div>
         </div>
 
+        ${showControls ? html`
         <!-- ── Fan & Swing ── -->
         <div class="section">
           <div class="section-title">Fan & Swing</div>
@@ -641,16 +830,16 @@ export class MirAIeACCard extends LitElement {
               class="setting-tile ${this._openPanel === 'fan' ? 'active' : ''} ${!isOn || hvacMode === 'dry' || isCleaning ? 'disabled' : ''}"
               title="${isCleaning ? 'Fan speed cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust fan speed' : (hvacMode === 'dry' ? 'Fan speed is automatically managed in Dry mode' : 'Adjust fan speed'))}"
               @click=${() => {
-        if (isCleaning) {
-          this._showToast('Fan speed cannot be changed while coil cleaning is active');
-        } else if (!isOn) {
-          this._showToast('Turn on the AC to adjust fan speed');
-        } else if (hvacMode === 'dry') {
-          this._showToast('Fan speed is automatically managed in Dry mode');
-        } else {
-          this._togglePanel('fan');
-        }
-      }}
+          if (isCleaning) {
+            this._showToast('Fan speed cannot be changed while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to adjust fan speed');
+          } else if (hvacMode === 'dry') {
+            this._showToast('Fan speed is automatically managed in Dry mode');
+          } else {
+            this._togglePanel('fan');
+          }
+        }}
             >
               <div class="setting-tile-label">
                 <ha-icon icon="mdi:fan"></ha-icon>
@@ -667,14 +856,14 @@ export class MirAIeACCard extends LitElement {
                 class="setting-tile ${this._openPanel === 'swing_v' ? 'active' : ''} ${!isOn || isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'Swing vanes cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust swing vanes' : 'Adjust vertical swing')}"
                 @click=${() => {
-          if (isCleaning) {
-            this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to adjust swing vanes');
-          } else {
-            this._togglePanel('swing_v');
-          }
-        }}
+            if (isCleaning) {
+              this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to adjust swing vanes');
+            } else {
+              this._togglePanel('swing_v');
+            }
+          }}
               >
                 <div class="setting-tile-label">
                   <ha-icon icon="mdi:arrow-up-down"></ha-icon>
@@ -692,14 +881,14 @@ export class MirAIeACCard extends LitElement {
                 class="setting-tile ${this._openPanel === 'swing_h' ? 'active' : ''} ${!isOn || isCleaning ? 'disabled' : ''}"
                 title="${isCleaning ? 'Horizontal swing cannot be adjusted while coil cleaning is active' : (!isOn ? 'Turn on the AC to adjust horizontal swing' : 'Adjust horizontal swing')}"
                 @click=${() => {
-          if (isCleaning) {
-            this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to adjust horizontal swing');
-          } else {
-            this._togglePanel('swing_h');
-          }
-        }}
+            if (isCleaning) {
+              this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to adjust horizontal swing');
+            } else {
+              this._togglePanel('swing_h');
+            }
+          }}
               >
                 <div class="setting-tile-label">
                   <ha-icon icon="mdi:arrow-left-right"></ha-icon>
@@ -752,30 +941,30 @@ export class MirAIeACCard extends LitElement {
           <div class="section-title">Comfort Presets</div>
           <div class="segmented-bar">
             ${['none', 'eco', 'boost'].map(p => {
-          const isBlocked = !isOn || (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') || isCleaning || (curCvIdx > 0 && p !== 'none');
-          return html`
+            const isBlocked = !isOn || (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') || isCleaning || (curCvIdx > 0 && p !== 'none');
+            return html`
                 <button
                   class="segmented-item ${presetMode === p ? 'active' : ''} ${isBlocked ? 'disabled' : ''}"
                   title="${isCleaning ? 'Presets cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to select presets' : (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none' ? `Presets are not available in ${this._modeLabel(hvacMode)} mode` : (curCvIdx > 0 && p !== 'none' ? 'Presets cannot be changed while capacity limit is active' : (p === 'none' ? 'Normal' : p.charAt(0).toUpperCase() + p.slice(1)))))}"
                   @click=${() => {
-              if (isCleaning) {
-                this._showToast('Presets cannot be changed while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to select presets');
-              } else if (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') {
-                this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
-              } else if (curCvIdx > 0 && p !== 'none') {
-                this._showToast('Presets cannot be changed while capacity limit is active');
-              } else {
-                this._setPreset(p);
-              }
-            }}
+                if (isCleaning) {
+                  this._showToast('Presets cannot be changed while coil cleaning is active');
+                } else if (!isOn) {
+                  this._showToast('Turn on the AC to select presets');
+                } else if (['dry', 'auto', 'fan_only'].includes(hvacMode) && p !== 'none') {
+                  this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
+                } else if (curCvIdx > 0 && p !== 'none') {
+                  this._showToast('Presets cannot be changed while capacity limit is active');
+                } else {
+                  this._setPreset(p);
+                }
+              }}
                 >
                   <ha-icon icon="${this._presetIcon(p)}"></ha-icon>
                   ${this._presetLabel(p)}
                 </button>
               `;
-        })}
+          })}
           </div>
         </div>
 
@@ -798,9 +987,9 @@ export class MirAIeACCard extends LitElement {
                 </div>
                 <div class="step-notches">
                   ${allCvSteps.map((opt, i) => {
-          const isPresetActive = ['eco', 'boost', 'powerful'].includes(presetMode);
-          const isCvBlocked = !isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning || (isPresetActive && i > 0);
-          return html`
+            const isPresetActive = ['eco', 'boost', 'powerful'].includes(presetMode);
+            const isCvBlocked = !isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning || (isPresetActive && i > 0);
+            return html`
                       <div class="notch-wrapper">
                         <button
                           class="step-notch
@@ -809,39 +998,42 @@ export class MirAIeACCard extends LitElement {
                             ${isCvBlocked ? 'disabled' : ''}"
                           title="${isCleaning ? 'Capacity limit cannot be changed while coil cleaning is active' : (!isOn ? 'Turn on the AC to set capacity limits' : (['dry', 'auto', 'fan_only'].includes(hvacMode) ? `Capacity limit is not available in ${this._modeLabel(hvacMode)} mode` : (isPresetActive && i > 0 ? `Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active` : (i === 0 ? 'Normal' : `${parseCv(opt)}%`))))}"
                           @click=${() => {
-              if (isCleaning) {
-                this._showToast('Capacity limit cannot be changed while coil cleaning is active');
-              } else if (!isOn) {
-                this._showToast('Turn on the AC to set capacity limits');
-              } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-                this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
-              } else if (isPresetActive && i > 0) {
-                this._showToast(`Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active`);
-              } else {
-                this._setPreset(opt);
-              }
-            }}
+                if (isCleaning) {
+                  this._showToast('Capacity limit cannot be changed while coil cleaning is active');
+                } else if (!isOn) {
+                  this._showToast('Turn on the AC to set capacity limits');
+                } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+                  this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
+                } else if (isPresetActive && i > 0) {
+                  this._showToast(`Capacity limit cannot be changed while ${this._presetLabel(presetMode)} mode is active`);
+                } else {
+                  this._setPreset(opt);
+                }
+              }}
                         ></button>
                         <span class="notch-label ${i === curCvIdx ? 'current' : ''}">${i === 0 ? 'N' : parseCv(opt)}</span>
                       </div>
                     `;
-        })}
+          })}
                 </div>
               </div>
             </div>
           </div>
         ` : ''}
+        ` : ''}
 
         <!-- ── Controls (Nanoe, Display, Coil Clean) ── -->
-        ${nanoe || display || coilBtn ? html`
+        ${showControls && (nanoe || display || coilBtn) ? html`
           <div class="section">
             <div class="section-title">Controls</div>
             <div class="toggles">
               ${nanoe ? html`
-                <div class="toggle-card ${!isOnline || isCleaning ? 'disabled' : ''}"
-                     title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}"
+                <div class="toggle-card ${!isOnline || isCleaning || isMatterFailoverOnly ? 'disabled' : ''}"
+                     title="${isMatterFailoverOnly ? 'Unavailable while Matter is the only active connection' : (isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification'))}"
                      @click=${() => {
-            if (isCleaning) {
+            if (isMatterFailoverOnly) {
+              this._showToast('Unavailable while Matter is the only active connection');
+            } else if (isCleaning) {
               this._showToast('Nanoe cannot be toggled while coil cleaning is active');
             } else if (!isOnline) {
               this._showToast('Device is offline');
@@ -912,10 +1104,22 @@ export class MirAIeACCard extends LitElement {
         ` : ''}
 
         <!-- ── Energy Cards ── -->
-        ${energyToday || energyYest ? html`
+        ${showEnergy && (energyToday || energyYest || estPower) ? html`
           <div class="section">
             <div class="section-title">Energy Consumption</div>
             <div class="energy-row">
+              ${estPower ? html`
+                <div class="energy-card" @click=${() => this._showMoreInfo(estPower.entity_id)}>
+                  <div class="energy-label">
+                    <ha-icon icon="mdi:lightning-bolt"></ha-icon>
+                    Live Power
+                  </div>
+                  <div class="energy-value-row">
+                    <span class="energy-value">${!isNaN(Number(estPower.state)) ? Number(estPower.state).toFixed(1) : '—'}</span>
+                    <span class="energy-unit">${estPower.attributes.unit_of_measurement ?? 'W'}</span>
+                  </div>
+                </div>
+              ` : ''}
               ${energyToday ? html`
                 <div class="energy-card" @click=${() => this._showMoreInfo(energyToday.entity_id)}>
                   <div class="energy-label">
@@ -945,7 +1149,7 @@ export class MirAIeACCard extends LitElement {
         ` : ''}
 
         <!-- Footer Telemetry Status Row -->
-        <div class="footer-telemetry-row">
+        ${showDiagnostics ? html`<div class="footer-telemetry-row">
           ${this._renderTransportPills(a.primary_backend, a.secondary_backend, localUdp, cloudMqtt, irBlaster)}
           ${controlSource && controlSource.state && controlSource.state !== 'unknown' && controlSource.state !== 'unavailable' ? html`
             <div class="connection-status-pill">
@@ -953,13 +1157,14 @@ export class MirAIeACCard extends LitElement {
               <span>Last controlled by: ${this._sourceLabel(controlSource.state)}</span>
             </div>
           ` : ''}
+          ${this._renderDiagTelemetryPills(compFreq, evapTemp, condTemp, voltage, current)}
           ${rssi ? html`
             <div class="connection-status-pill">
               <ha-icon icon="mdi:wifi" style="--mdc-icon-size: 14px;"></ha-icon>
               <span>${rssi.state} ${rssi.attributes.unit_of_measurement ?? 'dBm'}</span>
             </div>
           ` : ''}
-        </div>
+        </div>` : ''}
       </ha-card>
     `;
   }
@@ -967,6 +1172,43 @@ export class MirAIeACCard extends LitElement {
   /* ─────────────────────────────────────────────
      Panel toggle
      ───────────────────────────────────────────── */
+
+  private _renderDiagTelemetryPills(compFreq: any, evapTemp: any, condTemp: any, voltage: any, current: any): TemplateResult {
+    const valOrDash = (st: any) =>
+      st?.state && st.state !== 'unknown' && st.state !== 'unavailable' ? st.state : '—';
+    return html`
+      ${compFreq ? html`
+        <div class="connection-status-pill" @click=${() => this._showMoreInfo(compFreq.entity_id)}>
+          <ha-icon icon="mdi:sine-wave" style="--mdc-icon-size: 14px;"></ha-icon>
+          <span>${valOrDash(compFreq)} ${compFreq.attributes?.unit_of_measurement ?? 'Hz'}</span>
+        </div>
+      ` : ''}
+      ${evapTemp ? html`
+        <div class="connection-status-pill" @click=${() => this._showMoreInfo(evapTemp.entity_id)}>
+          <ha-icon icon="mdi:thermometer-lines" style="--mdc-icon-size: 14px;"></ha-icon>
+          <span>Evap ${valOrDash(evapTemp)}${evapTemp.attributes?.unit_of_measurement ?? '°C'}</span>
+        </div>
+      ` : ''}
+      ${condTemp ? html`
+        <div class="connection-status-pill" @click=${() => this._showMoreInfo(condTemp.entity_id)}>
+          <ha-icon icon="mdi:sun-thermometer-outline" style="--mdc-icon-size: 14px;"></ha-icon>
+          <span>Out ${valOrDash(condTemp)}${condTemp.attributes?.unit_of_measurement ?? '°C'}</span>
+        </div>
+      ` : ''}
+      ${voltage ? html`
+        <div class="connection-status-pill" @click=${() => this._showMoreInfo(voltage.entity_id)}>
+          <ha-icon icon="mdi:flash-triangle-outline" style="--mdc-icon-size: 14px;"></ha-icon>
+          <span>${valOrDash(voltage)} ${voltage.attributes?.unit_of_measurement ?? 'V'}</span>
+        </div>
+      ` : ''}
+      ${current ? html`
+        <div class="connection-status-pill" @click=${() => this._showMoreInfo(current.entity_id)}>
+          <ha-icon icon="mdi:current-ac" style="--mdc-icon-size: 14px;"></ha-icon>
+          <span>${valOrDash(current)} ${current.attributes?.unit_of_measurement ?? 'A'}</span>
+        </div>
+      ` : ''}
+    `;
+  }
 
   private _togglePanel(name: string): void {
     this._haptic('selection');
@@ -1336,6 +1578,12 @@ export class MirAIeACCard extends LitElement {
     const filterAlert = this._findCompanionEntity(cfg.filter_alert_sensor, 'binary_sensor', ['filter_clean_alert', 'filter_alert', 'filter_clean']);
     const energyToday = this._findCompanionEntity(cfg.energy_today_sensor, 'sensor', ['today_s_energy', 'energy_today', 'today_energy']);
     const energyYest = this._findCompanionEntity(cfg.energy_yesterday_sensor, 'sensor', ['yesterday_s_energy', 'energy_yesterday', 'yesterday_energy']);
+    const estPower = this._findCompanionEntity(cfg.estimated_power_sensor, 'sensor', ['estimated_power']);
+    const compFreq = this._findCompanionEntity(cfg.compressor_frequency_sensor, 'sensor', ['compressor_frequency']);
+    const evapTemp = this._findCompanionEntity(cfg.evaporator_coil_temp_sensor, 'sensor', ['evaporator_coil_temperature', 'evaporator_coil_temp']);
+    const condTemp = this._findCompanionEntity(cfg.outdoor_condenser_temp_sensor, 'sensor', ['outdoor_condenser_temperature', 'outdoor_condenser_temp']);
+    const voltage = this._findCompanionEntity(cfg.voltage_sensor, 'sensor', ['voltage']);
+    const current = this._findCompanionEntity(cfg.current_sensor, 'sensor', ['current']);
     const rssi = this._findCompanionEntity(cfg.rssi_sensor, 'sensor', ['rssi', 'signal']);
     const localUdp = this._findCompanionEntity(cfg.local_udp_sensor, 'binary_sensor', ['local_udp_connected', 'local_udp', 'udp_connected']);
     const cloudMqtt = this._findCompanionEntity(cfg.cloud_mqtt_sensor, 'binary_sensor', ['cloud_mqtt_connected', 'cloud_mqtt']);
@@ -1363,6 +1611,11 @@ export class MirAIeACCard extends LitElement {
       'control_source'
     ]);
     const isCleaning = coilSensor?.state === 'on';
+    const isMatterOnly = a.matter_only === true || (a.primary_backend === 'matter' && (!a.secondary_backend || a.secondary_backend === 'none'));
+    const isMatterFailoverOnly = !isMatterOnly && a.matter_connected === true && a.non_matter_available === false;
+    const showControls = cfg.show_controls !== false && !isMatterOnly;
+    const showEnergy = cfg.show_energy !== false;
+    const showDiagnostics = cfg.show_diagnostics !== false;
 
     let activeStrs: string[] = [];
     if (isOn) {
@@ -1493,42 +1746,45 @@ export class MirAIeACCard extends LitElement {
                 ${modes.map((mode: string) => html`
                   <button class="gh-dropdown-item ${hvacMode === mode ? 'active' : ''}" 
                        @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setHvacMode(mode); }}>
-                    ${this._modeLabel(mode)}
+                    <span>${this._modeLabel(mode)}</span>
+                    ${hvacMode === mode ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                   </button>
                 `)}
               </div>
             ` : ''}
           </div>
 
+          ${showControls ? html`
           <!-- Preset Dropdown -->
           <div class="gh-select-wrapper ${this._ghDropdown === 'preset' ? 'active' : ''}" style="${!isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning ? 'opacity: 0.5;' : ''}">
             <button class="gh-custom-select" @click=${(e: Event) => {
-        e.stopPropagation();
-        if (isCleaning) {
-          this._showToast('Presets cannot be changed while coil cleaning is active');
-        } else if (!isOn) {
-          this._showToast('Turn on the AC to select presets');
-        } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-          this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
-        } else {
-          this._haptic('selection');
-          this._ghDropdown = this._ghDropdown === 'preset' ? null : 'preset';
-        }
-      }}>
+          e.stopPropagation();
+          if (isCleaning) {
+            this._showToast('Presets cannot be changed while coil cleaning is active');
+          } else if (!isOn) {
+            this._showToast('Turn on the AC to select presets');
+          } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+            this._showToast(`Presets are not available in ${this._modeLabel(hvacMode)} mode`);
+          } else {
+            this._haptic('selection');
+            this._ghDropdown = this._ghDropdown === 'preset' ? null : 'preset';
+          }
+        }}>
               <span>Preset: ${presetMode && presetMode !== 'none' && !/^cv[\s_]/.test(presetMode) ? this._presetLabel(presetMode) : 'None'}</span>
               <ha-icon icon="mdi:chevron-down"></ha-icon>
             </button>
             ${this._ghDropdown === 'preset' ? html`
               <div class="gh-dropdown-menu">
                 ${stdPresets.map((p: string) => {
-        const isActive = (!presetMode || presetMode === 'none' || /^cv[\s_]/.test(presetMode)) ? (p === 'none') : (presetMode === p);
-        return html`
+          const isActive = (!presetMode || presetMode === 'none' || /^cv[\s_]/.test(presetMode)) ? (p === 'none') : (presetMode === p);
+          return html`
                     <button class="gh-dropdown-item ${isActive ? 'active' : ''}" 
                          @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setPreset(p); }}>
-                      ${this._presetLabel(p)}
+                      <span>${this._presetLabel(p)}</span>
+                      ${isActive ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                     </button>
                   `;
-      })}
+        })}
               </div>
             ` : ''}
           </div>
@@ -1537,33 +1793,34 @@ export class MirAIeACCard extends LitElement {
           ${cvSorted.length > 0 ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'cv' ? 'active' : ''}" style="${!isOn || ['dry', 'auto', 'fan_only'].includes(hvacMode) || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-          e.stopPropagation();
-          if (isCleaning) {
-            this._showToast('Capacity limit cannot be changed while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to set capacity limits');
-          } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
-            this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
-          } else {
-            this._haptic('selection');
-            this._ghDropdown = this._ghDropdown === 'cv' ? null : 'cv';
-          }
-        }}>
+            e.stopPropagation();
+            if (isCleaning) {
+              this._showToast('Capacity limit cannot be changed while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to set capacity limits');
+            } else if (['dry', 'auto', 'fan_only'].includes(hvacMode)) {
+              this._showToast(`Capacity limit is not available in ${this._modeLabel(hvacMode)} mode`);
+            } else {
+              this._haptic('selection');
+              this._ghDropdown = this._ghDropdown === 'cv' ? null : 'cv';
+            }
+          }}>
                 <span>Limit: ${stateObj.attributes.preset_mode && /^cv[\s_]/.test(stateObj.attributes.preset_mode) ? (parseCv(stateObj.attributes.preset_mode) === 0 ? 'Normal' : parseCv(stateObj.attributes.preset_mode) + '%') : 'Normal'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
               ${this._ghDropdown === 'cv' ? html`
                 <div class="gh-dropdown-menu">
                   ${cvSorted.map((cv: string) => {
-          const pct = parseCv(cv);
-          const isActive = stateObj.attributes.preset_mode === cv || (pct === 0 && (!stateObj.attributes.preset_mode || !/^cv[\s_]/.test(stateObj.attributes.preset_mode)));
-          return html`
+            const pct = parseCv(cv);
+            const isActive = stateObj.attributes.preset_mode === cv || (pct === 0 && (!stateObj.attributes.preset_mode || !/^cv[\s_]/.test(stateObj.attributes.preset_mode)));
+            return html`
                       <button class="gh-dropdown-item ${isActive ? 'active' : ''}" 
                            @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setPreset(cv); }}>
-                        ${pct === 0 ? 'Normal' : pct + '%'}
+                        <span>${pct === 0 ? 'Normal' : pct + '%'}</span>
+                        ${isActive ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                       </button>
                     `;
-        })}
+          })}
                 </div>
               ` : ''}
             </div>
@@ -1573,18 +1830,18 @@ export class MirAIeACCard extends LitElement {
           ${fanModes.length > 0 ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'fan' ? 'active' : ''}" style="${!isOn || hvacMode === 'dry' || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-          e.stopPropagation();
-          if (isCleaning) {
-            this._showToast('Fan speed cannot be changed while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to adjust fan speed');
-          } else if (hvacMode === 'dry') {
-            this._showToast('Fan speed is automatically managed in Dry mode');
-          } else {
-            this._haptic('selection');
-            this._ghDropdown = this._ghDropdown === 'fan' ? null : 'fan';
-          }
-        }}>
+            e.stopPropagation();
+            if (isCleaning) {
+              this._showToast('Fan speed cannot be changed while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to adjust fan speed');
+            } else if (hvacMode === 'dry') {
+              this._showToast('Fan speed is automatically managed in Dry mode');
+            } else {
+              this._haptic('selection');
+              this._ghDropdown = this._ghDropdown === 'fan' ? null : 'fan';
+            }
+          }}>
                 <span>Fan: ${fanMode ? (fanMode.charAt(0).toUpperCase() + fanMode.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1593,7 +1850,8 @@ export class MirAIeACCard extends LitElement {
                   ${fanModes.map((m: string) => html`
                     <button class="gh-dropdown-item ${fanMode === m ? 'active' : ''}" 
                          @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setFanMode(stateObj, m); }}>
-                      ${m.charAt(0).toUpperCase() + m.slice(1)}
+                      <span>${m.charAt(0).toUpperCase() + m.slice(1)}</span>
+                      ${fanMode === m ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                     </button>
                   `)}
                 </div>
@@ -1605,16 +1863,16 @@ export class MirAIeACCard extends LitElement {
           ${swingVModes.length > 0 || swingV != null ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'swing_v' ? 'active' : ''}" style="${!isOn || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-          e.stopPropagation();
-          if (isCleaning) {
-            this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to adjust swing vanes');
-          } else {
-            this._haptic('selection');
-            this._ghDropdown = this._ghDropdown === 'swing_v' ? null : 'swing_v';
-          }
-        }}>
+            e.stopPropagation();
+            if (isCleaning) {
+              this._showToast('Swing vanes cannot be adjusted while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to adjust swing vanes');
+            } else {
+              this._haptic('selection');
+              this._ghDropdown = this._ghDropdown === 'swing_v' ? null : 'swing_v';
+            }
+          }}>
                 <span>V-Swing: ${swingV ? (swingV.charAt(0).toUpperCase() + swingV.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1623,7 +1881,8 @@ export class MirAIeACCard extends LitElement {
                   ${swingVModes.map((m: string) => html`
                     <button class="gh-dropdown-item ${swingV === m ? 'active' : ''}" 
                          @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setSwing(stateObj, m); }}>
-                      ${m.charAt(0).toUpperCase() + m.slice(1)}
+                      <span>${m.charAt(0).toUpperCase() + m.slice(1)}</span>
+                      ${swingV === m ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                     </button>
                   `)}
                 </div>
@@ -1635,16 +1894,16 @@ export class MirAIeACCard extends LitElement {
           ${swingHModes.length > 0 || swingH != null ? html`
             <div class="gh-select-wrapper ${this._ghDropdown === 'swing_h' ? 'active' : ''}" style="${!isOn || isCleaning ? 'opacity: 0.5;' : ''}">
               <button class="gh-custom-select" @click=${(e: Event) => {
-          e.stopPropagation();
-          if (isCleaning) {
-            this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
-          } else if (!isOn) {
-            this._showToast('Turn on the AC to adjust horizontal swing');
-          } else {
-            this._haptic('selection');
-            this._ghDropdown = this._ghDropdown === 'swing_h' ? null : 'swing_h';
-          }
-        }}>
+            e.stopPropagation();
+            if (isCleaning) {
+              this._showToast('Horizontal swing cannot be adjusted while coil cleaning is active');
+            } else if (!isOn) {
+              this._showToast('Turn on the AC to adjust horizontal swing');
+            } else {
+              this._haptic('selection');
+              this._ghDropdown = this._ghDropdown === 'swing_h' ? null : 'swing_h';
+            }
+          }}>
                 <span>H-Swing: ${swingH ? (swingH.charAt(0).toUpperCase() + swingH.slice(1)) : 'Auto'}</span>
                 <ha-icon icon="mdi:chevron-down"></ha-icon>
               </button>
@@ -1653,20 +1912,22 @@ export class MirAIeACCard extends LitElement {
                   ${swingHModes.map((m: string) => html`
                     <button class="gh-dropdown-item ${swingH === m ? 'active' : ''}" 
                          @click=${(e: Event) => { e.stopPropagation(); this._ghDropdown = null; this._setHSwing(stateObj, m); }}>
-                      ${m.charAt(0).toUpperCase() + m.slice(1)}
+                      <span>${m.charAt(0).toUpperCase() + m.slice(1)}</span>
+                      ${swingH === m ? html`<ha-icon icon="mdi:check"></ha-icon>` : ''}
                     </button>
                   `)}
                 </div>
               ` : ''}
             </div>
           ` : ''}
+          ` : ''}
         </div>
 
-        ${nanoe || display || coilBtn || energyToday || energyYest ? html`
+        ${(showControls && (nanoe || display || coilBtn || coilSensor)) || (showEnergy && (energyToday || energyYest || estPower)) ? html`
           <div class="gh-extra-chips">
-            ${nanoe ? html`<div class="gh-chip ${nanoe.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification')}" @click=${() => isCleaning ? this._showToast('Nanoe cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(nanoe.entity_id, nanoe.state))}><ha-icon icon="mdi:virus-outline"></ha-icon>Nanoe</div>` : ''}
-            ${display ? (() => { const isDisplayOn = display.state === 'on' || display.state === 'night'; const displayIcon = display.state === 'night' ? 'mdi:weather-night' : 'mdi:lightbulb-outline'; const displaySuffix = display.state === 'night' ? ' (Night)' : ''; return html`<div class="gh-chip ${isDisplayOn ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._handleDisplayToggle(display))}><ha-icon icon="${displayIcon}"></ha-icon>Display${displaySuffix}</div>`; })() : ''}
-            ${coilBtn || coilSensor ? html`
+            ${showControls && nanoe ? html`<div class="gh-chip ${nanoe.state === 'on' ? 'active' : ''} ${!isOnline || isCleaning || isMatterFailoverOnly ? 'disabled' : ''}" title="${isMatterFailoverOnly ? 'Unavailable while Matter is the only active connection' : (isCleaning ? 'Nanoe cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle Nanoe™ air purification'))}" @click=${() => isMatterFailoverOnly ? this._showToast('Unavailable while Matter is the only active connection') : (isCleaning ? this._showToast('Nanoe cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._toggleSwitch(nanoe.entity_id, nanoe.state)))}><ha-icon icon="mdi:virus-outline"></ha-icon>Nanoe</div>` : ''}
+            ${showControls && display ? (() => { const isDisplayOn = display.state === 'on' || display.state === 'night'; const displayIcon = display.state === 'night' ? 'mdi:weather-night' : 'mdi:lightbulb-outline'; const displaySuffix = display.state === 'night' ? ' (Night)' : ''; return html`<div class="gh-chip ${isDisplayOn ? 'active' : ''} ${!isOnline || isCleaning ? 'disabled' : ''}" title="${isCleaning ? 'Display LED cannot be toggled while coil cleaning is active' : (!isOnline ? 'Device is offline' : 'Toggle indoor unit LED display')}" @click=${() => isCleaning ? this._showToast('Display LED cannot be toggled while coil cleaning is active') : (!isOnline ? this._showToast('Device is offline') : this._handleDisplayToggle(display))}><ha-icon icon="${displayIcon}"></ha-icon>Display${displaySuffix}</div>`; })() : ''}
+            ${showControls && (coilBtn || coilSensor) ? html`
               <div
                 class="gh-chip ${coilSensor?.state === 'on' ? 'active' : ''} ${isOn || isCleaning ? 'disabled' : ''}"
                 style="${isOn ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
@@ -1685,11 +1946,12 @@ export class MirAIeACCard extends LitElement {
                 ${coilSensor?.state === 'on' ? 'Cleaning…' : 'Clean Coil'}
               </div>
             ` : ''}
-            ${energyToday && energyYest ? html`
-              <div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh • Yesterday: ${fmt2(energyYest.state)} kWh</div>
+            ${showEnergy && estPower ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(estPower.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Live: ${!isNaN(Number(estPower.state)) ? Number(estPower.state).toFixed(1) : '—'} ${estPower.attributes.unit_of_measurement ?? 'W'}</div>` : ''}
+            ${showEnergy && energyToday && energyYest ? html`
+              <div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} ${energyToday.attributes?.unit_of_measurement ?? 'kWh'} • Yesterday: ${fmt2(energyYest.state)} ${energyYest.attributes?.unit_of_measurement ?? 'kWh'}</div>
             ` : html`
-              ${energyToday ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} kWh</div>` : ''}
-              ${energyYest ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyYest.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Yesterday: ${fmt2(energyYest.state)} kWh</div>` : ''}
+              ${showEnergy && energyToday ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyToday.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Today: ${fmt2(energyToday.state)} ${energyToday.attributes?.unit_of_measurement ?? 'kWh'}</div>` : ''}
+              ${showEnergy && energyYest ? html`<div class="gh-chip-text" style="cursor: pointer;" @click=${() => this._showMoreInfo(energyYest.entity_id)}><ha-icon icon="mdi:lightning-bolt"></ha-icon>Yesterday: ${fmt2(energyYest.state)} ${energyYest.attributes?.unit_of_measurement ?? 'kWh'}</div>` : ''}
             `}
           </div>
         ` : ''}
@@ -1705,10 +1967,10 @@ export class MirAIeACCard extends LitElement {
                   <div
                     class="gh-chip ${bInfo.isActive ? 'active' : ''} ${isAuto || isCleaning ? 'disabled' : ''}"
                     style="${isAuto ? 'opacity: 0.4; cursor: not-allowed;' : ''}"
-                    title="${isAuto ? 'Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary transport backend' + bInfo.fallbackText)}"
+                    title="${isAuto ? 'Primary connection method is managed automatically in Auto Failover mode' + bInfo.fallbackText : (isCleaning ? 'Backend cannot be switched while coil cleaning is active' : 'Click to toggle primary connection method' + bInfo.fallbackText)}"
                     @click=${() => {
                 if (isAuto) {
-                  this._showToast('Backend transport is managed automatically in Auto Failover mode' + bInfo.fallbackText);
+                  this._showToast('Primary connection method is managed automatically in Auto Failover mode' + bInfo.fallbackText);
                 } else if (isCleaning) {
                   this._showToast('Backend cannot be switched while coil cleaning is active');
                 } else {
@@ -1745,7 +2007,7 @@ export class MirAIeACCard extends LitElement {
         ` : ''}
         
         <!-- Footer Telemetry Status Row -->
-        <div class="footer-telemetry-row">
+        ${showDiagnostics ? html`<div class="footer-telemetry-row">
           ${this._renderTransportPills(stateObj.attributes?.primary_backend, stateObj.attributes?.secondary_backend, localUdp, cloudMqtt, irBlaster)}
           ${controlSource && controlSource.state && controlSource.state !== 'unknown' && controlSource.state !== 'unavailable' ? html`
             <div class="connection-status-pill">
@@ -1753,13 +2015,14 @@ export class MirAIeACCard extends LitElement {
               <span>Last controlled by: ${this._sourceLabel(controlSource.state)}</span>
             </div>
           ` : ''}
+          ${this._renderDiagTelemetryPills(compFreq, evapTemp, condTemp, voltage, current)}
           ${rssi ? html`
             <div class="connection-status-pill">
               <ha-icon icon="mdi:wifi" style="--mdc-icon-size: 14px;"></ha-icon>
               <span>${rssi.state} ${rssi.attributes.unit_of_measurement ?? 'dBm'}</span>
             </div>
           ` : ''}
-        </div>
+        </div>` : ''}
       </ha-card>
     `;
   }
@@ -1886,4 +2149,136 @@ export class MirAIeACCard extends LitElement {
 // Dual registration for seamless backward-compatibility
 if (!customElements.get('miraie-ac-card')) {
   customElements.define('miraie-ac-card', class extends MirAIeACCard { });
+}
+
+const COMPANION_KEYS = [
+  'room_temp_sensor',
+  'humidity_sensor',
+  'local_udp_sensor',
+  'cloud_mqtt_sensor',
+  'hybrid_submode_switch',
+  'active_backend_switch',
+  'ir_blaster_sensor',
+  'control_source_sensor',
+  'nanoe_switch',
+  'display_switch',
+  'coil_clean_button',
+  'coil_cleaning_sensor',
+  'filter_alert_sensor',
+  'estimated_power_sensor',
+  'energy_today_sensor',
+  'energy_yesterday_sensor',
+  'rssi_sensor',
+  'compressor_frequency_sensor',
+  'evaporator_coil_temp_sensor',
+  'outdoor_condenser_temp_sensor',
+  'voltage_sensor',
+  'current_sensor',
+];
+
+@customElement('miraie-ac-card-in-editor')
+export class MirAIeACCardEditor extends LitElement {
+  @property({ attribute: false }) public hass!: HomeAssistant;
+  @state() private _config: Record<string, any> = {};
+  private _hydratedEntity: string = '';
+  private _autoPopulatedKeys: Map<string, string> = new Map();
+  private _userEditedKeys: Set<string> = new Set();
+
+  public setConfig(config: MirAIeCardConfig): void {
+    const nextCfg = { ...(config || {}) };
+    if (this._hydratedEntity && nextCfg.entity === this._hydratedEntity) {
+      for (const [k, autoVal] of this._autoPopulatedKeys.entries()) {
+        if (nextCfg[k] !== autoVal) {
+          this._autoPopulatedKeys.delete(k);
+        }
+      }
+    }
+    this._config = nextCfg;
+    this._hydrateAutoDetected();
+  }
+
+  protected updated(changedProps: PropertyValues): void {
+    super.updated(changedProps);
+    if (changedProps.has('hass')) {
+      this._hydrateAutoDetected();
+    }
+  }
+
+  private _hydrateAutoDetected(): void {
+    const entity = this._config?.entity;
+    if (!entity || !this.hass?.states || this._hydratedEntity === entity) return;
+    const prevEntity = this._hydratedEntity;
+    const isEntitySwitch = Boolean(prevEntity && prevEntity !== entity);
+    this._hydratedEntity = entity;
+    const discovered = discoverCompanionEntities(this.hass, entity);
+    const next = { ...this._config };
+    let changed = false;
+    if (isEntitySwitch) {
+      const prevDiscovered = discoverCompanionEntities(this.hass, prevEntity);
+      for (const [k, autoVal] of this._autoPopulatedKeys.entries()) {
+        if (next[k] === autoVal) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      for (const [k, prevVal] of Object.entries(prevDiscovered)) {
+        if (!this._userEditedKeys.has(k) && next[k] === prevVal) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      this._autoPopulatedKeys.clear();
+    }
+    for (const [k, v] of Object.entries(discovered)) {
+      if (!(k in next)) {
+        next[k] = v;
+        this._autoPopulatedKeys.set(k, v);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._config = next;
+      this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: next }, bubbles: true, composed: true }));
+    }
+  }
+
+  private _valueChanged = (ev: CustomEvent): void => {
+    const incoming = { ...(ev.detail?.value || {}) };
+    for (const k of COMPANION_KEYS) {
+      if (k in incoming && incoming[k] == null) {
+        incoming[k] = '';
+        this._autoPopulatedKeys.delete(k);
+        this._userEditedKeys.add(k);
+      } else if (k in incoming && incoming[k] !== this._config[k]) {
+        this._autoPopulatedKeys.delete(k);
+        this._userEditedKeys.add(k);
+      } else if (k in this._config && !(k in incoming)) {
+        incoming[k] = '';
+        this._autoPopulatedKeys.delete(k);
+        this._userEditedKeys.add(k);
+      }
+    }
+    this._config = incoming;
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: incoming }, bubbles: true, composed: true }));
+    this._hydrateAutoDetected();
+  };
+
+  protected render(): TemplateResult {
+    if (!this.hass || !this._config) return html``;
+    const form = MirAIeACCard.getConfigForm();
+    const formData = { ...this._config };
+    for (const k of COMPANION_KEYS) {
+      if (formData[k] === '') delete formData[k];
+    }
+    return html`
+      <ha-form
+        .hass=${this.hass}
+        .data=${formData}
+        .schema=${form.schema}
+        .computeLabel=${form.computeLabel}
+        .computeHelper=${form.computeHelper}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
+    `;
+  }
 }

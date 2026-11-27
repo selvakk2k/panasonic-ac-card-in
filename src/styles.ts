@@ -712,35 +712,46 @@ export const styles = css`
     position: absolute;
     bottom: calc(100% + 8px);
     left: 0;
-    width: 100%;
-    background: var(--m-surface, var(--card-background-color));
-    border: 1px solid rgba(128, 128, 128, 0.2);
+    min-width: 100%;
+    width: max-content;
+    max-width: 240px;
+    background: var(--card-background-color, #1e1e2e);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
     overflow: hidden;
-    z-index: 10;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
     display: flex;
     flex-direction: column;
+    padding: 4px;
+    gap: 2px;
   }
   .gh-dropdown-item {
     width: 100%;
     text-align: left;
     border: none;
+    border-radius: 12px;
     background: transparent;
     font-family: inherit;
-    padding: 12px 16px;
-    font-size: 0.95rem;
-    color: var(--m-text);
-    transition: 0.2s;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    color: var(--m-text, var(--primary-text-color));
+    transition: 0.15s;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    --mdc-icon-size: 16px;
     -webkit-tap-highlight-color: transparent;
   }
   .gh-dropdown-item:hover {
-    background: rgba(128, 128, 128, 0.1);
+    background: rgba(128, 128, 128, 0.18);
   }
   .gh-dropdown-item.active {
     color: var(--miraie-accent);
-    background: rgba(128, 128, 128, 0.05);
+    background: color-mix(in srgb, var(--miraie-accent) 18%, transparent);
+    font-weight: 600;
   }
   .gh-extra-chips {
     display: flex;
@@ -764,21 +775,26 @@ export const styles = css`
   .gh-chip {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     padding: 6px 12px;
     border-radius: 16px;
-    background: rgba(128, 128, 128, 0.15);
-    color: var(--m-text-2);
+    border: 1px solid rgba(128, 128, 128, 0.22);
+    background: rgba(128, 128, 128, 0.12);
+    color: var(--m-text-2, var(--secondary-text-color));
     font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
     transition: 0.2s;
     --mdc-icon-size: 16px;
   }
   .gh-chip:hover {
-    background: rgba(128, 128, 128, 0.25);
+    background: rgba(128, 128, 128, 0.24);
   }
   .gh-chip.active {
     color: var(--miraie-accent);
+    background: color-mix(in srgb, var(--miraie-accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--miraie-accent) 45%, transparent);
+    font-weight: 600;
   }
   .gh-chip.disabled {
     opacity: 0.4;
@@ -813,5 +829,35 @@ export const styles = css`
     gap: 6px;
     font-size: 0.76rem;
     color: var(--m-text-2);
+  }
+  .m3-slider-wrap {
+    width: 100%;
+    padding: 4px 12px 12px;
+    box-sizing: border-box;
+  }
+  .m3-temp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 36px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--m-accent, var(--primary-color, #4f8ef7)) 18%, var(--m-surface-hover, rgba(128, 128, 128, 0.16)));
+    outline: none;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .m3-temp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 36px;
+    border-radius: 5px;
+    background: var(--m-accent, var(--primary-color, #4f8ef7));
+    box-shadow: -400px 0 0 395px color-mix(in srgb, var(--m-accent, var(--primary-color, #4f8ef7)) 42%, transparent);
+    cursor: pointer;
+  }
+  .m3-temp-slider:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 `;
