@@ -32,35 +32,29 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 * **Energy Analytics Cards**: Quick telemetry display for live **Power (`W`)**, **Today's Energy (`kWh`)**, and **Yesterday's Energy (`kWh`)**—compatible with both MirAIe blended energy sensors and external smart plugs.
 * **Haptic Touch Feedback**: Tactile vibration responses when toggling modes and adjusting setpoints on mobile devices.
 * **Visual GUI Editor**: Custom `ha-form` editor organized into expandable sections (`Appearance & Theme`, `Sensors`, `Connectivity & Failover`, `AC Features & Controls`, `Energy & Diagnostics`), auto-populating companion entities on card creation while letting you clear or override any entity.
+* **Dynamic Theming & Theme Compatibility**: Responsive across default Home Assistant themes in Dark and Light modes, optimized for the [Material You Theme by Nerwyn](https://github.com/Nerwyn/material-you-theme) (Google Home Material 3 style) and the [Graphite Theme by Tilman Griesel](https://github.com/TilmanGriesel/graphite) (Classic style).
 
 ---
 
 ## Screenshots
 
+<div align="center">
+
 ### Full Views (Dark & Light)
 
-<div align="center">
+| Style | Dark Mode | Light Mode |
+| :---: | :---: | :---: |
+| **Google Home (Material 3)**<br>*(shown with [Material You Theme](https://github.com/Nerwyn/material-you-theme))* | <img src="images/card-google-home-dark.png" alt="Google Home Dark Mode" width="380"> | <img src="images/card-google-home-light.png" alt="Google Home Light Mode" width="380"> |
+| **Classic**<br>*(shown with [Graphite Theme](https://github.com/TilmanGriesel/graphite))* | <img src="images/card-classic-dark.png" alt="Classic Dark Mode" width="380"> | <img src="images/card-classic-light.png" alt="Classic Light Mode" width="380"> |
+
+### Compact Views (Dark & Light)
 
 | Style | Dark Mode | Light Mode |
-| :--- | :---: | :---: |
-| **Google Home (Material 3)** | <img src="images/card-google-home-dark.png" alt="Google Home Dark Mode" width="380"> | <img src="images/card-google-home-light.png" alt="Google Home Light Mode" width="380"> |
-| **Classic** | <img src="images/card-classic-dark.png" alt="Classic Dark Mode" width="380"> | <img src="images/card-classic-light.png" alt="Classic Light Mode" width="380"> |
-
-</div>
-
-### Compact View
-
-<div align="center">
-
-| Compact (Dark) | Compact (Light) |
-| :---: | :---: |
-| <img src="images/card-compact-dark.png" alt="Compact Dark Mode" width="380"> | <img src="images/card-compact-light.png" alt="Compact Light Mode" width="380"> |
-
-</div>
+| :---: | :---: | :---: |
+| **Google Home (Material 3)**<br>*(shown with [Material You Theme](https://github.com/Nerwyn/material-you-theme))* | <img src="images/card-compact-gh-dark.png" alt="Google Home Compact Dark Mode" width="380"> | <img src="images/card-compact-gh-light.png" alt="Google Home Compact Light Mode" width="380"> |
+| **Classic**<br>*(shown with [Graphite Theme](https://github.com/TilmanGriesel/graphite))* | <img src="images/card-compact-classic-dark.png" alt="Classic Compact Dark Mode" width="380"> | <img src="images/card-compact-classic-light.png" alt="Classic Compact Light Mode" width="380"> |
 
 ### Visual Card Editor
-
-<div align="center">
 
 | Appearance & Theme | Toggles & Collapsible Sections |
 | :---: | :---: |
