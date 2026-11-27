@@ -17,7 +17,7 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 
 > [!NOTE]
 > ### What's New in 3.0
-> Card `3.0` adds the **Google Home (Material 3)** UI style, a custom `ha-form` visual editor with auto-populated companion entities, live **Voltage** and **Current** footer telemetry, external smart-plug power/energy sensor support, and Matter-Only feature handling. See **[What's New in 3.0](docs/v3.0-whats-new.md)**.
+> Card `3.0` adds the **Google Home (Material 3)** UI style, a custom `ha-form` visual editor with auto-populated companion entities, live **Voltage** and **Current** footer telemetry, external smart-plug power/energy sensor support, and Matter-Only feature handling. See **[What's New in 3.0](v3.0-whats-new.md)**.
 
 ---
 
@@ -41,20 +41,20 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 
 | Style | Dark Mode | Light Mode |
 | :--- | :---: | :---: |
-| **Google Home (Material 3)** | <img src="docs/images/card-google-home-dark.png" alt="Google Home Dark Mode" width="380"> | <img src="docs/images/card-google-home-light.png" alt="Google Home Light Mode" width="380"> |
-| **Classic** | <img src="docs/images/card-classic-dark.png" alt="Classic Dark Mode" width="380"> | <img src="docs/images/card-classic-light.png" alt="Classic Light Mode" width="380"> |
+| **Google Home (Material 3)** | <img src="images/card-google-home-dark.png" alt="Google Home Dark Mode" width="380"> | <img src="images/card-google-home-light.png" alt="Google Home Light Mode" width="380"> |
+| **Classic** | <img src="images/card-classic-dark.png" alt="Classic Dark Mode" width="380"> | <img src="images/card-classic-light.png" alt="Classic Light Mode" width="380"> |
 
 ### Compact View
 
 | Compact (Dark) | Compact (Light) |
 | :---: | :---: |
-| <img src="docs/images/card-compact-dark.png" alt="Compact Dark Mode" width="380"> | <img src="docs/images/card-compact-light.png" alt="Compact Light Mode" width="380"> |
+| <img src="images/card-compact-dark.png" alt="Compact Dark Mode" width="380"> | <img src="images/card-compact-light.png" alt="Compact Light Mode" width="380"> |
 
 ### Visual Card Editor
 
 | Appearance & Theme | Toggles & Collapsible Sections |
 | :---: | :---: |
-| <img src="docs/images/card-editor-top.png" alt="Visual Editor Appearance" width="340"> | <img src="docs/images/card-editor-bottom.png" alt="Visual Editor Sections" width="340"> |
+| <img src="images/card-editor-top.png" alt="Visual Editor Appearance" width="340"> | <img src="images/card-editor-bottom.png" alt="Visual Editor Sections" width="340"> |
 
 ---
 
@@ -176,5 +176,5 @@ current_sensor: sensor.living_room_ac_current
 * **Automated Code Review & Auditing**: **CodeRabbit** ([@coderabbitai](https://github.com/coderabbitai)) — automated pull request and pre-commit code reviews, edge case detection, and security verification.
 * **Pre-Release Code Review & Auditing**: **Claude** (Anthropic) — independent code review, security audits, and edge-case verification.
 
-Licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+Licensed under the **MIT License**. See the [LICENSE](../LICENSE) file for details.
 
