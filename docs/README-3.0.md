@@ -39,22 +39,34 @@ A custom Lovelace thermostat card for Panasonic Air Conditioners on the Indian m
 
 ### Full Views (Dark & Light)
 
+<div align="center">
+
 | Style | Dark Mode | Light Mode |
 | :--- | :---: | :---: |
 | **Google Home (Material 3)** | <img src="images/card-google-home-dark.png" alt="Google Home Dark Mode" width="380"> | <img src="images/card-google-home-light.png" alt="Google Home Light Mode" width="380"> |
 | **Classic** | <img src="images/card-classic-dark.png" alt="Classic Dark Mode" width="380"> | <img src="images/card-classic-light.png" alt="Classic Light Mode" width="380"> |
 
+</div>
+
 ### Compact View
+
+<div align="center">
 
 | Compact (Dark) | Compact (Light) |
 | :---: | :---: |
 | <img src="images/card-compact-dark.png" alt="Compact Dark Mode" width="380"> | <img src="images/card-compact-light.png" alt="Compact Light Mode" width="380"> |
 
+</div>
+
 ### Visual Card Editor
+
+<div align="center">
 
 | Appearance & Theme | Toggles & Collapsible Sections |
 | :---: | :---: |
 | <img src="images/card-editor-top.png" alt="Visual Editor Appearance" width="340"> | <img src="images/card-editor-bottom.png" alt="Visual Editor Sections" width="340"> |
+
+</div>
 
 ---
 
